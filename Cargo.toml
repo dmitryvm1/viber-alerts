@@ -1,0 +1,20 @@
+[package]
+name = "viber_alerts"
+version = "0.1.0"
+
+[dependencies]
+toml = "*"
+actix = "0.7"
+actix-web = {version = "^0.7" , features=["alpn"] }
+futures = "0.1"
+env_logger = "0.5"
+bytes = "0.4"
+reqwest = "*"
+dirs = "1.0.4"
+serde_json = "1.0.26"
+serde = "1.0.71"
+serde_derive = "*"
+json = "*"
+
+victoria-dom = "0.1"
+openssl = "0.10.11"
