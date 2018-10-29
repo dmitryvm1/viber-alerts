@@ -16,6 +16,7 @@ impl Config {
     }
 
     pub fn read(app_name: &str) -> Config {
+        println!("Reading config");
         // Get the user's home dir path
         let mut path_buf = dirs::home_dir().unwrap();
         // append folder for storing user related files

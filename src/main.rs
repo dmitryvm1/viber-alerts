@@ -15,6 +15,8 @@ extern crate env_logger;
 extern crate dirs;
 
 use std::io::Read;
+use std::sync::Arc;
+use std::sync::Mutex;
 use serde_json::Value;
 use actix_web::http::{header, Method, StatusCode};
 use actix_web::middleware::session::{self, RequestSession};
@@ -26,13 +28,15 @@ use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use futures::future::{result, FutureResult};
 use std::{env, io};
 use futures::{Future, Stream};
+use actix::{AsyncContext, Arbiter, Actor, Context, Running};
+use actix_web::server::HttpServer;
 
-static LATITUDE: f32 = 50.4501;
-static LONGITUDE: f32 = 30.5234;
+
 static APP_NAME: &str = "viber_alerts";
 
 pub mod viber;
 pub mod config;
+pub mod dark_sky;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
@@ -40,9 +44,11 @@ struct MyObj {
     number: i32,
 }
 
+type AppStateType = Arc<AppState>;
+
 /// This handler uses `HttpRequest::json()` for loading json object.
 /// 
-fn index(req: &HttpRequest<AppState>) -> Box<Future<Item=HttpResponse, Error=Error>> {
+fn index(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>> {
     req.json()
         .from_err()  // convert all errors into `Error`
         .and_then(|val: MyObj| {
@@ -52,7 +58,7 @@ fn index(req: &HttpRequest<AppState>) -> Box<Future<Item=HttpResponse, Error=Err
         .responder()
 }
 
-fn viber_webhook(req: &HttpRequest<AppState>) -> Box<Future<Item=HttpResponse, Error=Error>> {
+fn viber_webhook(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>> {
     //  println!("Viber webhook called");
     req.payload()
         .concat2()
@@ -65,7 +71,7 @@ fn viber_webhook(req: &HttpRequest<AppState>) -> Box<Future<Item=HttpResponse, E
         }).responder()
 }
 
-fn send_message(req: &HttpRequest<AppState>) -> Box<Future<Item=HttpResponse, Error=Error>> {
+fn send_message(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>> {
     let state = req.state();
     let config = &state.config;
     let viber_api_key = &config.viber_api_key;
@@ -80,7 +86,7 @@ fn send_message(req: &HttpRequest<AppState>) -> Box<Future<Item=HttpResponse, Er
         }).responder()
 }
 
-fn send_file_message(req: &HttpRequest<AppState>) -> Box<Future<Item=HttpResponse, Error=Error>> {
+fn send_file_message(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>> {
     let state = req.state();
     let config: &config::Config = &state.config;
     viber::raw::send_file_message(format!("{}css/styles.css", config.domain_root_url.as_ref().unwrap().as_str()).as_str(),
@@ -95,7 +101,7 @@ fn send_file_message(req: &HttpRequest<AppState>) -> Box<Future<Item=HttpRespons
         }).responder()
 }
 
-fn acc_data(req: &HttpRequest<AppState>) -> Box<Future<Item=HttpResponse, Error=Error>> {
+fn acc_data(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>> {
     let state = req.state();
     let config: &config::Config = &state.config;
     viber::raw::get_account_data(config.viber_api_key.as_ref().unwrap() )
@@ -112,45 +118,87 @@ fn acc_data(req: &HttpRequest<AppState>) -> Box<Future<Item=HttpResponse, Error=
         }).responder()
 }
 
+struct WeatherInquirer {
+    app_state: AppStateType
+}
+
+impl WeatherInquirer {
+    fn new(app_state: AppStateType) -> WeatherInquirer {
+        WeatherInquirer {
+            app_state
+        }
+    }
+}
+
+impl Actor for WeatherInquirer {
+    type Context  = Context<Self>;
+    fn started(&mut self, ctx: &mut Self::Context) {
+        ctx.run_interval(std::time::Duration::new(5, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
+            _t.app_state.dark_sky.weather();
+        });
+    }
+
+    fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
+        Running::Stop
+    }
+}
+
 struct AppState {
-    pub config: config::Config
+    pub config: config::Config,
+    pub dark_sky: dark_sky::DarkSky
+}
+
+impl AppState {
+    pub fn new(config: config::Config) -> AppState {
+        let api_key = config.dark_sky_api_key.clone();
+        AppState {
+            config: config,
+            dark_sky: dark_sky::DarkSky::new(api_key.unwrap())
+        }
+    }
 }
 
 fn main() {
-    // load ssl keys
     env::set_var("RUST_LOG", "actix_web=debug");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
+
     let sys = actix::System::new(APP_NAME);
+
     let mut privkey_path = config::Config::get_config_dir(APP_NAME);
     let mut fullchain_path = privkey_path.clone();
     privkey_path.push("privkey.pem");
     fullchain_path.push("fullchain.pem");
+
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-
     builder
         .set_private_key_file(privkey_path.to_str().unwrap(), SslFiletype::PEM)
         .unwrap();
     builder.set_certificate_chain_file(fullchain_path.to_str().unwrap()).unwrap();
 
-    // let viber_arbiter = actix::Arbiter::new();
-    let addr = server::new(
-        || {
-            let state = AppState {
-                config: config::Config::read(APP_NAME)
-            };
-            App::with_state(state)
-                .middleware(middleware::Logger::default())
-                .resource("/api/", |r| r.f(index))
-                .resource("/api/send_message/", |r| r.f(send_message))
-                .resource("/api/send_file_message/", |r| r.f(send_file_message))
-                .resource("/api/acc_data/", |r| r.f(acc_data))
-                .resource("/api/viber/webhook", |r| r.method(http::Method::POST).f(viber_webhook))
-        })
-        .bind("127.0.0.1:8080")
-        .unwrap()
-        .shutdown_timeout(1)
-        .start();
+    let _server = Arbiter::start(move|_| {
+        let state = AppState::new(config::Config::read(APP_NAME));
+        let state = Arc::new(state);
+        let _state = state.clone();
+        let addr = HttpServer::new(
+            move|| {
+                App::with_state(state.clone())
+                    .middleware(middleware::Logger::default())
+                    .resource("/api/", |r| r.f(index))
+                    .resource("/api/send_message/", |r| r.f(send_message))
+                    .resource("/api/send_file_message/", |r| r.f(send_file_message))
+                    .resource("/api/acc_data/", |r| r.f(acc_data))
+                    .resource("/api/viber/webhook", |r| r.method(http::Method::POST).f(viber_webhook))
+            })
+            .bind("127.0.0.1:8080")
+            .unwrap().workers(2)
+            .shutdown_timeout(1)
+            .start();
+        WeatherInquirer::new(_state)
+    });
+
+
+
     let _ = sys.run();
 }
