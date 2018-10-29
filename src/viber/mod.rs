@@ -1,4 +1,3 @@
-use reqwest;
 
 pub mod raw;
 pub mod messages;

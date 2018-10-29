@@ -1,11 +1,9 @@
 #![allow(unused_variables)]
 #![cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
-extern crate reqwest;
 extern crate actix_web;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
 extern crate json;
 extern crate victoria_dom;
 extern crate openssl;
@@ -13,7 +11,10 @@ extern crate futures;
 extern crate actix;
 extern crate env_logger;
 extern crate dirs;
+extern crate forecast;
+extern crate reqwest;
 
+use forecast::*;
 use std::io::Read;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -31,12 +32,13 @@ use futures::{Future, Stream};
 use actix::{AsyncContext, Arbiter, Actor, Context, Running};
 use actix_web::server::HttpServer;
 
-
 static APP_NAME: &str = "viber_alerts";
 
 pub mod viber;
 pub mod config;
-pub mod dark_sky;
+
+static LATITUDE: f64 = 50.4501;
+static LONGITUDE: f64 = 30.5234;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
@@ -134,7 +136,24 @@ impl Actor for WeatherInquirer {
     type Context  = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.run_interval(std::time::Duration::new(5, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
-            _t.app_state.dark_sky.weather();
+            let config = &_t.app_state.config;
+            let api_key = config.dark_sky_api_key.clone();
+
+            let reqwest_client = reqwest::Client::new();
+            let api_client = forecast::ApiClient::new(&reqwest_client);
+
+            let mut blocks = vec![ExcludeBlock::Daily, ExcludeBlock::Alerts];
+
+            let forecast_request = ForecastRequestBuilder::new(api_key.as_ref().unwrap().as_str(), LATITUDE, LONGITUDE)
+                .exclude_block(ExcludeBlock::Hourly)
+                .exclude_blocks(&mut blocks)
+                .extend(ExtendBy::Hourly)
+                .lang(Lang::Arabic)
+                .units(Units::Imperial)
+                .build();
+            let forecast_response = api_client.get_forecast(forecast_request).unwrap();
+            let api_response: ApiResponse = serde_json::from_reader(forecast_response).unwrap();
+            println!("forecast: {:?}", api_response);
         });
     }
 
@@ -145,15 +164,12 @@ impl Actor for WeatherInquirer {
 
 struct AppState {
     pub config: config::Config,
-    pub dark_sky: dark_sky::DarkSky
 }
 
 impl AppState {
     pub fn new(config: config::Config) -> AppState {
-        let api_key = config.dark_sky_api_key.clone();
         AppState {
             config: config,
-            dark_sky: dark_sky::DarkSky::new(api_key.unwrap())
         }
     }
 }
@@ -197,8 +213,6 @@ fn main() {
             .start();
         WeatherInquirer::new(_state)
     });
-
-
 
     let _ = sys.run();
 }
