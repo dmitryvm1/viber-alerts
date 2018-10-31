@@ -15,7 +15,6 @@ extern crate forecast;
 extern crate reqwest;
 
 use forecast::*;
-use std::io::Read;
 use std::sync::Arc;
 use std::sync::Mutex;
 use serde_json::Value;
@@ -48,8 +47,6 @@ struct MyObj {
 
 type AppStateType = Arc<AppState>;
 
-/// This handler uses `HttpRequest::json()` for loading json object.
-/// 
 fn index(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>> {
     req.json()
         .from_err()  // convert all errors into `Error`
@@ -132,28 +129,34 @@ impl WeatherInquirer {
     }
 }
 
+impl WeatherInquirer {
+    fn print_forecast(&self, api_response: &ApiResponse) {
+        println!("Temperature now: {:?}", api_response.currently.unwrap().apparent_temperature.unwrap());
+        println!("Temperature tomorrow: {:?}", api_response.daily.expect("no daily data")
+            .data.first().expect("daily data is empty").temperature_low.expect("no temperature low"));
+    }
+}
+
 impl Actor for WeatherInquirer {
     type Context  = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.run_interval(std::time::Duration::new(5, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
             let config = &_t.app_state.config;
             let api_key = config.dark_sky_api_key.clone();
-
             let reqwest_client = reqwest::Client::new();
             let api_client = forecast::ApiClient::new(&reqwest_client);
-
-            let mut blocks = vec![ExcludeBlock::Daily, ExcludeBlock::Alerts];
+            let mut blocks = vec![ExcludeBlock::Alerts];
 
             let forecast_request = ForecastRequestBuilder::new(api_key.as_ref().unwrap().as_str(), LATITUDE, LONGITUDE)
                 .exclude_block(ExcludeBlock::Hourly)
                 .exclude_blocks(&mut blocks)
                 .extend(ExtendBy::Hourly)
-                .lang(Lang::Arabic)
-                .units(Units::Imperial)
+                .lang(Lang::Ukranian)
+                .units(Units::UK)
                 .build();
             let forecast_response = api_client.get_forecast(forecast_request).unwrap();
             let api_response: ApiResponse = serde_json::from_reader(forecast_response).unwrap();
-            println!("forecast: {:?}", api_response);
+            self.print_forecast(&api_response);
         });
     }
 

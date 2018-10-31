@@ -1,6 +1,5 @@
 use actix_web;
 use futures::Future;
-use actix_web::Error;
 use actix_web::client::{ClientResponse, SendRequestError};
 use std::borrow::Cow;
 
