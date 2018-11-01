@@ -1,4 +1,5 @@
 #![allow(unused_variables)]
+#![feature(try_trait)]
 #![cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 extern crate actix_web;
 extern crate serde_json;
@@ -13,7 +14,9 @@ extern crate env_logger;
 extern crate dirs;
 extern crate forecast;
 extern crate reqwest;
+extern crate chrono;
 
+use chrono::prelude::*;
 use forecast::*;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -21,11 +24,10 @@ use serde_json::Value;
 use actix_web::http::{header, Method, StatusCode};
 use actix_web::middleware::session::{self, RequestSession};
 use actix_web::{
-    error, fs, http, middleware, pred, server, App, AsyncResponder, Error, HttpMessage, HttpRequest, Responder, HttpResponse, Path,
+    error, fs, http, middleware, App, AsyncResponder, Error, HttpMessage, HttpRequest, Responder, HttpResponse, Path,
     Result,
 };
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use futures::future::{result, FutureResult};
 use std::{env, io};
 use futures::{Future, Stream};
 use actix::{AsyncContext, Arbiter, Actor, Context, Running};
@@ -39,6 +41,30 @@ pub mod config;
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
 
+
+struct Viber {
+    api_key: String,
+    admin_id: String
+}
+
+impl Viber {
+    pub fn new(api_key: String, admin_id: String) -> Viber {
+        println!("viber admin id: {}", &admin_id);
+        Viber {
+            api_key,
+            admin_id
+        }
+    }
+
+    pub fn send_text_to_admin(&self, text: &str) -> std::result::Result<(), actix_web::client::SendRequestError> {
+        viber::raw::send_text_message(text, self.admin_id.as_str(), &self.api_key)
+            .and_then(|response| {
+                let body = response.body().poll().unwrap();
+  //              println!("message  sent {:?}", body);
+                Ok(())
+            }).wait()
+    }
+}
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
     name: String,
@@ -130,17 +156,24 @@ impl WeatherInquirer {
 }
 
 impl WeatherInquirer {
-    fn print_forecast(&self, api_response: &ApiResponse) {
-        println!("Temperature now: {:?}", api_response.currently.unwrap().apparent_temperature.unwrap());
-        println!("Temperature tomorrow: {:?}", api_response.daily.expect("no daily data")
-            .data.first().expect("daily data is empty").temperature_low.expect("no temperature low"));
+    fn print_forecast(&self, api_response: &ApiResponse) -> Result<(), std::option::NoneError> {
+        let currently = api_response.currently.as_ref()?;
+        println!("Temperature now: {:?}", currently.apparent_temperature?);
+        let daily = api_response.daily.as_ref()?;
+        let day = daily.data.first()?;
+        let dt = Utc.timestamp(day.time as i64, 0);
+        let dt = dt.with_timezone(&FixedOffset::east(2*3600));
+        println!("Date: {}", dt.to_rfc2822());
+        println!("Temperature tomorrow: {:?}", day.temperature_low?);
+        self.app_state.viber.send_text_to_admin(format!("Temperature tomorrow: {:?}", day.temperature_low?).as_str()).expect("Failed to send viber message.");
+        Ok(())
     }
 }
 
 impl Actor for WeatherInquirer {
     type Context  = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(std::time::Duration::new(5, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
+        ctx.run_interval(std::time::Duration::new(8, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
             let config = &_t.app_state.config;
             let api_key = config.dark_sky_api_key.clone();
             let reqwest_client = reqwest::Client::new();
@@ -156,7 +189,7 @@ impl Actor for WeatherInquirer {
                 .build();
             let forecast_response = api_client.get_forecast(forecast_request).unwrap();
             let api_response: ApiResponse = serde_json::from_reader(forecast_response).unwrap();
-            self.print_forecast(&api_response);
+            _t.print_forecast(&api_response);
         });
     }
 
@@ -167,12 +200,16 @@ impl Actor for WeatherInquirer {
 
 struct AppState {
     pub config: config::Config,
+    pub viber: Viber
 }
 
 impl AppState {
     pub fn new(config: config::Config) -> AppState {
+        let viber_api_key = config.viber_api_key.clone();
+        let admin_id = config.admin_id.clone();
         AppState {
             config: config,
+            viber: Viber::new(viber_api_key.unwrap(), admin_id.unwrap())
         }
     }
 }
