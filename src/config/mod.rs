@@ -15,7 +15,26 @@ impl Config {
         path_buf
     }
 
+    #[cfg(build = "debug")]
     pub fn read(app_name: &str) -> Config {
+        Config::read_from_toml(app_name)
+    }
+
+    #[cfg(build = "release")]
+    pub fn read(app_name: &str) -> Config {
+        Config::read_from_env()
+    }
+
+    fn read_from_env() -> Config {
+        Config {
+            admin_id: std::env::var("ADMIN_ID").ok(),
+            viber_api_key: std::env::var("VIBER_API_KEY").ok(),
+            dark_sky_api_key: std::env::var("DARK_SKY_API_KEY").ok(),
+            domain_root_url: std::env::var("DOMAIN_ROOT_URL").ok()
+        }
+    }
+
+    fn read_from_toml(app_name: &str) -> Config {
         println!("Reading config");
         // Get the user's home dir path
         let mut path_buf = dirs::home_dir().unwrap();

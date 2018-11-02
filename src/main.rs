@@ -291,11 +291,11 @@ fn main() {
     fullchain_path.push("fullchain.pem");
 
     // load ssl keys
-    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-    builder
-        .set_private_key_file(privkey_path.to_str().unwrap(), SslFiletype::PEM)
-        .unwrap();
-    builder.set_certificate_chain_file(fullchain_path.to_str().unwrap()).unwrap();
+   // let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+   // builder
+  //      .set_private_key_file(privkey_path.to_str().unwrap(), SslFiletype::PEM)
+ //       .unwrap();
+ //   builder.set_certificate_chain_file(fullchain_path.to_str().unwrap()).unwrap();
 
     let _server = Arbiter::start(move|_| {
         let state = AppState::new(config::Config::read(APP_NAME));
