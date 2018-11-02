@@ -15,12 +15,12 @@ impl Config {
         path_buf
     }
 
-    #[cfg(build = "debug")]
+    #[cfg(debug_assertions)]
     pub fn read(app_name: &str) -> Config {
         Config::read_from_toml(app_name)
     }
 
-    #[cfg(build = "release")]
+    #[cfg(not(debug_assertions))]
     pub fn read(app_name: &str) -> Config {
         Config::read_from_env()
     }
