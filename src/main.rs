@@ -60,11 +60,11 @@ impl Viber {
         viber::raw::send_text_message(text, self.admin_id.as_str(), &self.api_key)
             .and_then(|response| {
                 let body = response.body().poll().unwrap();
-  //              println!("message  sent {:?}", body);
                 Ok(())
             }).wait()
     }
 }
+
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
     name: String,
@@ -144,28 +144,84 @@ fn acc_data(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Er
 }
 
 struct WeatherInquirer {
-    app_state: AppStateType
+    app_state: AppStateType,
+    last_response: Option<ApiResponse>,
+    last_broadcast: i64
 }
 
 impl WeatherInquirer {
     fn new(app_state: AppStateType) -> WeatherInquirer {
         WeatherInquirer {
-            app_state
+            app_state,
+            last_response: None,
+            last_broadcast: 0
         }
     }
 }
 
 impl WeatherInquirer {
-    fn print_forecast(&self, api_response: &ApiResponse) -> Result<(), std::option::NoneError> {
-        let currently = api_response.currently.as_ref()?;
-        println!("Temperature now: {:?}", currently.apparent_temperature?);
-        let daily = api_response.daily.as_ref()?;
-        let day = daily.data.first()?;
+    fn inquire_if_needed(&mut self) -> Result<(), std::option::NoneError>{
+        if self.last_response.is_none() {
+            self.last_response = self.inquire();
+        } else {
+            let today = Utc::now().with_timezone(&FixedOffset::east(2*3600));
+            // check if the first forecast is for today:
+            let dt = {
+                let daily = self.last_response.as_ref().unwrap().daily.as_ref()?;
+                let first = daily.data.first()?;
+                Utc.timestamp(first.time as i64, 0)
+            };
+            let dt = dt.with_timezone(&FixedOffset::east(2*3600));
+            if dt.day() == today.day() {
+                return Ok(())
+            } else {
+                self.last_response = self.inquire();
+            }
+        }
+        Ok(())
+    }
+
+    fn today(&self) -> Option<&DataPoint> {
+        if self.last_response.is_some() {
+            let daily = self.last_response.as_ref().unwrap().daily.as_ref()?;
+            let first = daily.data.first();
+            return first;
+        }
+        None
+    }
+
+    fn tomorrow(&self) -> Option<&DataPoint> {
+        if self.last_response.is_some() {
+            let daily = self.last_response.as_ref().unwrap().daily.as_ref()?;
+            let first = daily.data.get(1);
+            return first;
+        }
+        None
+    }
+
+    fn inquire(&self) -> Option<ApiResponse> {
+        let config = &self.app_state.config;
+        let api_key = config.dark_sky_api_key.clone();
+        let reqwest_client = reqwest::Client::new();
+        let api_client = forecast::ApiClient::new(&reqwest_client);
+        let mut blocks = vec![ExcludeBlock::Alerts];
+
+        let forecast_request = ForecastRequestBuilder::new(api_key.as_ref().unwrap().as_str(), LATITUDE, LONGITUDE)
+            .exclude_block(ExcludeBlock::Hourly)
+            .exclude_blocks(&mut blocks)
+            .extend(ExtendBy::Hourly)
+            .lang(Lang::Ukranian)
+            .units(Units::UK)
+            .build();
+        let forecast_response = api_client.get_forecast(forecast_request).unwrap();
+        serde_json::from_reader(forecast_response).ok()
+    }
+
+    fn broadcast_forecast(&self) -> Result<(), std::option::NoneError> {
+        let day = self.tomorrow()?;
         let dt = Utc.timestamp(day.time as i64, 0);
-        let dt = dt.with_timezone(&FixedOffset::east(2*3600));
-        println!("Date: {}", dt.to_rfc2822());
-        println!("Temperature tomorrow: {:?}", day.temperature_low?);
-        self.app_state.viber.send_text_to_admin(format!("Temperature tomorrow: {:?}", day.temperature_low?).as_str()).expect("Failed to send viber message.");
+        let msg = format!("Lowest temperature tomorrow: {:?}, {}", day.temperature_low?, dt.to_rfc2822());
+        self.app_state.viber.send_text_to_admin(msg.as_str());
         Ok(())
     }
 }
@@ -174,22 +230,8 @@ impl Actor for WeatherInquirer {
     type Context  = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.run_interval(std::time::Duration::new(8, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
-            let config = &_t.app_state.config;
-            let api_key = config.dark_sky_api_key.clone();
-            let reqwest_client = reqwest::Client::new();
-            let api_client = forecast::ApiClient::new(&reqwest_client);
-            let mut blocks = vec![ExcludeBlock::Alerts];
-
-            let forecast_request = ForecastRequestBuilder::new(api_key.as_ref().unwrap().as_str(), LATITUDE, LONGITUDE)
-                .exclude_block(ExcludeBlock::Hourly)
-                .exclude_blocks(&mut blocks)
-                .extend(ExtendBy::Hourly)
-                .lang(Lang::Ukranian)
-                .units(Units::UK)
-                .build();
-            let forecast_response = api_client.get_forecast(forecast_request).unwrap();
-            let api_response: ApiResponse = serde_json::from_reader(forecast_response).unwrap();
-            _t.print_forecast(&api_response);
+            _t.inquire_if_needed();
+            _t.broadcast_forecast();
         });
     }
 
