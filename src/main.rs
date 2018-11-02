@@ -164,14 +164,13 @@ impl WeatherInquirer {
         if self.last_response.is_none() {
             self.last_response = self.inquire();
         } else {
-            let today = Utc::now().with_timezone(&FixedOffset::east(2*3600));
+            let today = Utc::now();
             // check if the first forecast is for today:
             let dt = {
                 let daily = self.last_response.as_ref().unwrap().daily.as_ref()?;
                 let first = daily.data.first()?;
                 Utc.timestamp(first.time as i64, 0)
             };
-            let dt = dt.with_timezone(&FixedOffset::east(2*3600));
             if dt.day() == today.day() {
                 return Ok(())
             } else {
@@ -184,7 +183,7 @@ impl WeatherInquirer {
     fn today(&self) -> Option<&DataPoint> {
         if self.last_response.is_some() {
             let daily = self.last_response.as_ref().unwrap().daily.as_ref()?;
-            let first = daily.data.first();
+            let first = daily.data.get(1);
             return first;
         }
         None
@@ -193,8 +192,8 @@ impl WeatherInquirer {
     fn tomorrow(&self) -> Option<&DataPoint> {
         if self.last_response.is_some() {
             let daily = self.last_response.as_ref().unwrap().daily.as_ref()?;
-            let first = daily.data.get(1);
-            return first;
+            let second = daily.data.get(2);
+            return second;
         }
         None
     }
@@ -220,7 +219,13 @@ impl WeatherInquirer {
     fn broadcast_forecast(&self) -> Result<(), std::option::NoneError> {
         let day = self.tomorrow()?;
         let dt = Utc.timestamp(day.time as i64, 0);
-        let msg = format!("Lowest temperature tomorrow: {:?}, {}", day.temperature_low?, dt.to_rfc2822());
+        let msg = format!("Прогноз на завтра {}.{}: \nТемпература: {:?} - {:?} \nОсадки: {:?} с вероятностью {}%" ,
+                          dt.day(),
+                          dt.month(),
+                          day.temperature_low?,
+                          day.temperature_high?,
+            day.precip_type.as_ref()?, day.precip_probability? * 100.0
+        );
         self.app_state.viber.send_text_to_admin(msg.as_str());
         Ok(())
     }
