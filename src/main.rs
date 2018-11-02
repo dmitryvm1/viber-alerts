@@ -9,6 +9,8 @@ extern crate json;
 extern crate victoria_dom;
 extern crate openssl;
 extern crate futures;
+#[macro_use]
+extern crate log;
 extern crate actix;
 extern crate env_logger;
 extern crate dirs;
@@ -21,7 +23,7 @@ use chrono::prelude::*;
 use forecast::*;
 use std::sync::Arc;
 use actix_web::{
-    http, middleware, App, AsyncResponder, Error, HttpMessage, HttpRequest, Responder, HttpResponse, Path,
+    http, middleware, App, AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse,
     Result,
 };
 // use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
@@ -29,7 +31,6 @@ use std::{env};
 use futures::{Future, Stream};
 use actix::{AsyncContext, Arbiter, Actor, Context, Running};
 use actix_web::server::HttpServer;
-use reqwest::StatusCode;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -62,17 +63,17 @@ struct Viber {
 
 impl Viber {
     pub fn new(api_key: String, admin_id: String) -> Viber {
-        println!("viber admin id: {}", &admin_id);
         Viber {
             api_key,
             admin_id
         }
     }
 
-    pub fn send_text_to_admin(&self, text: &str) -> std::result::Result<(), actix_web::client::SendRequestError> {
+    pub fn send_text_to_admin(&self, text: &str) -> std::result::Result<(), failure::Error> {
         viber::raw::send_text_message(text, self.admin_id.as_str(), &self.api_key)
+            .from_err()
             .and_then(|response| {
-                let body = response.body().poll().unwrap();
+                let body = response.body().poll()?;
                 Ok(())
             }).wait()
     }
@@ -97,12 +98,11 @@ fn index(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error
 }
 
 fn viber_webhook(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    //  println!("Viber webhook called");
     req.payload()
         .concat2()
         .from_err()
         .and_then(|body| {
-            println!("{}", std::str::from_utf8(&body).unwrap());
+            info!("{}", std::str::from_utf8(&body)?);
             Ok(HttpResponse::Ok()
                 .content_type("text/plain")
                 .body(""))
@@ -114,10 +114,10 @@ fn send_message(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse
     let config = &state.config;
     let viber_api_key = &config.viber_api_key;
     let key = &viber_api_key.as_ref();
-    viber::raw::send_text_message("Hi", config.admin_id.clone().unwrap().as_str(), key.unwrap())
+    viber::raw::send_text_message("Hi", config.admin_id.as_ref().unwrap().as_str(), key.unwrap())
         .from_err()
         .and_then(|response| {
-            response.body().poll().unwrap();
+            response.body().poll()?;
             Ok(HttpResponse::Ok()
                 .content_type("text/plain")
                 .body("sent"))
@@ -132,7 +132,7 @@ fn send_file_message(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpRes
                                   config.viber_api_key.as_ref().unwrap())
         .from_err()
         .and_then(|response| {
-            response.body().poll().unwrap();
+            response.body().poll()?;
             Ok(HttpResponse::Ok()
                 .content_type("text/plain")
                 .body("sent"))
@@ -148,7 +148,7 @@ fn acc_data(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Er
             response.body()
                 .from_err()
                 .and_then(|data| {
-                    let contents = String::from_utf8(data.to_vec()).unwrap();
+                    let contents = String::from_utf8(data.to_vec()).unwrap_or("".to_owned());
                     Ok(HttpResponse::Ok()
                         .content_type("text/plain")
                         .body(contents))
@@ -176,7 +176,7 @@ impl WeatherInquirer {
     fn inquire_if_needed(&mut self) -> Result<bool, failure::Error>{
         if self.last_response.is_none() {
             self.last_response = self.inquire().map_err(|e| {
-                println!("Error while requesting forecast: {:?}", e)
+                error!("Error while requesting forecast: {:?}", e.as_fail())
             }).ok();
             return Ok(true);
         } else {
@@ -189,38 +189,39 @@ impl WeatherInquirer {
                 Utc.timestamp(first.time as i64, 0)
             };
             if dt.day() == today.day() {
+                debug!("Skipping dark sky request. We have the data for today.");
                 return Ok(false)
             } else {
                 self.last_response = self.inquire().map_err(|e| {
-                    println!("Error while requesting forecast: {:?}", e)
+                    error!("Error while requesting forecast: {:?}", e.as_fail())
                 }).ok();
                 return Ok(true);
             }
         }
-        Ok(false)
     }
 
-    fn today(&self) -> Option<&DataPoint> {
-        if self.last_response.is_some() {
-            let daily = self.last_response.as_ref().unwrap().daily.as_ref()?;
+    #[allow(dead_code)]
+    fn today(&self) -> Result<&DataPoint, failure::Error> {
+        if let Some(ref lr) = self.last_response {
+            let daily = lr.daily.as_ref().ok_or(JsonError::MissingField {name:"daily".to_owned()})?;
             let first = daily.data.get(1);
-            return first;
+            return first.ok_or(failure::Error::from(JsonError::ArrayIndex));
         }
-        None
+        Err(failure::Error::from(CustomError { msg: "Forecast data is not present.".to_owned() }))
     }
 
     fn tomorrow(&self) -> Result<&DataPoint, failure::Error> {
-        if self.last_response.is_some() {
-            let daily = self.last_response.as_ref().unwrap().daily.as_ref().ok_or(JsonError::MissingField {name:"daily".to_owned()})?;
+        if let Some(ref lr) = self.last_response {
+            let daily = lr.daily.as_ref().ok_or(JsonError::MissingField {name:"daily".to_owned()})?;
             let second = daily.data.get(2);
             return second.ok_or(failure::Error::from(JsonError::ArrayIndex));
         }
-        Err(failure::Error::from(CustomError { msg: "No response from dark sky.".to_owned() }))
+        Err(failure::Error::from(CustomError { msg: "Forecast data is not present.".to_owned() }))
     }
 
     fn inquire(&self) -> Result<ApiResponse, failure::Error> {
         let config = &self.app_state.config;
-        let api_key = config.dark_sky_api_key.clone();
+        let api_key = &config.dark_sky_api_key;
         let reqwest_client = reqwest::Client::new();
         let api_client = forecast::ApiClient::new(&reqwest_client);
         let mut blocks = vec![ExcludeBlock::Alerts];
@@ -234,7 +235,6 @@ impl WeatherInquirer {
             .build();
         let forecast_response = api_client.get_forecast(forecast_request)?;
         if !forecast_response.status().is_success() {
-            println!("Dark sky response: {:?}", forecast_response.status());
             return Err(failure::Error::from(CustomError{msg: "Dark sky response failure".to_owned()}))
         }
         serde_json::from_reader(forecast_response).map_err(|e| {
@@ -244,9 +244,7 @@ impl WeatherInquirer {
 
     fn should_broadcast(&self) -> bool {
         let now = Utc::now();
-        println!("time is {}", now.hour());
         if (now.timestamp() - self.last_broadcast > 60*60*24)  && (now.hour() >= 19 && now.hour() <= 21) {
-            println!("broadcasting");
             return true;
         }
         false
@@ -273,7 +271,7 @@ impl WeatherInquirer {
                     JsonError::MissingField{name:"precip_probability".to_owned()}
                 )? * 100.0
             );
-            println!("Sending viber message");
+            info!("Sending viber message");
             self.app_state.viber.send_text_to_admin(msg.as_str())?;
         }
         self.last_broadcast = Utc::now().timestamp();
@@ -285,10 +283,13 @@ impl Actor for WeatherInquirer {
     type Context  = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.run_interval(std::time::Duration::new(8, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
-            _t.inquire_if_needed().ok();
-            _t.broadcast_forecast().map_err(|e| {
-                println!("Error broadcasting. {:?}", e);
-            });
+            if _t.inquire_if_needed().map_err(|e| {
+                error!("Error inquiring weather forecast. {}", e.as_fail());
+            }).is_ok() {
+                _t.broadcast_forecast().map_err(|e| {
+                    error!("Error broadcasting weather forecast. {}", e.as_fail());
+                });
+            }
         });
     }
 
@@ -318,10 +319,9 @@ fn get_server_port() -> u16 {
 }
 
 fn main() {
-    env::set_var("RUST_LOG", "actix_web=debug");
+    env::set_var("RUST_LOG", "viber_alerts=debug");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
-
     let sys = actix::System::new(APP_NAME);
 
     let mut privkey_path = config::Config::get_config_dir(APP_NAME);

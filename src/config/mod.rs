@@ -25,6 +25,7 @@ impl Config {
         Config::read_from_env()
     }
 
+    #[allow(dead_code)]
     fn read_from_env() -> Config {
         Config {
             admin_id: std::env::var("ADMIN_ID").ok(),
@@ -34,6 +35,7 @@ impl Config {
         }
     }
 
+    #[allow(dead_code)]
     fn read_from_toml(app_name: &str) -> Config {
         println!("Reading config");
         // Get the user's home dir path
