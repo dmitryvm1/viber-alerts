@@ -218,7 +218,7 @@ impl WeatherInquirer {
 
     fn should_broadcast(&self) -> bool {
         let now = Utc::now();
-        if now.timestamp() - self.last_broadcast > 60*60*24  || (now.hour() > 7 && now.hour() < 9) {
+        if now.timestamp() - self.last_broadcast > 60*60*24  && (now.hour() > 7 && now.hour() < 9) {
             return true;
         }
         false
