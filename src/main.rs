@@ -312,7 +312,7 @@ fn main() {
                     .resource("/api/viber/webhook", |r| r.method(http::Method::POST).f(viber_webhook))
             })
             .bind(format!("127.0.0.1:{}", get_server_port()))
-            .unwrap().workers(2)
+            .unwrap().workers(1)
             .shutdown_timeout(1)
             .start();
         WeatherInquirer::new(_state)
