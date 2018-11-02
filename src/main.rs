@@ -15,6 +15,7 @@ extern crate dirs;
 extern crate forecast;
 extern crate reqwest;
 extern crate chrono;
+#[macro_use] extern crate failure;
 
 use chrono::prelude::*;
 use forecast::*;
@@ -28,6 +29,7 @@ use std::{env};
 use futures::{Future, Stream};
 use actix::{AsyncContext, Arbiter, Actor, Context, Running};
 use actix_web::server::HttpServer;
+use reqwest::StatusCode;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -37,6 +39,21 @@ pub mod config;
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
 
+#[derive(Debug, Fail)]
+enum JsonError {
+    #[fail(display = "field is missing: {}", name)]
+    MissingField {
+        name: String,
+    },
+    #[fail(display = "error accessing array")]
+    ArrayIndex
+}
+
+#[derive(Debug, Fail)]
+#[fail(display = "Custom error: {}", msg)]
+struct CustomError {
+    msg: String
+}
 
 struct Viber {
     api_key: String,
@@ -156,24 +173,31 @@ impl WeatherInquirer {
 }
 
 impl WeatherInquirer {
-    fn inquire_if_needed(&mut self) -> Result<(), std::option::NoneError>{
+    fn inquire_if_needed(&mut self) -> Result<bool, failure::Error>{
         if self.last_response.is_none() {
-            self.last_response = self.inquire();
+            self.last_response = self.inquire().map_err(|e| {
+                println!("Error while requesting forecast: {:?}", e)
+            }).ok();
+            return Ok(true);
         } else {
             let today = Utc::now();
             // check if the first forecast is for today:
             let dt = {
-                let daily = self.last_response.as_ref().unwrap().daily.as_ref()?;
-                let first = daily.data.first()?;
+                let lr = self.last_response.as_ref().unwrap();
+                let daily = lr.daily.as_ref().ok_or(JsonError::MissingField {name: "daily".to_owned()})?;
+                let first = daily.data.first().ok_or(JsonError::ArrayIndex)?;
                 Utc.timestamp(first.time as i64, 0)
             };
             if dt.day() == today.day() {
-                return Ok(())
+                return Ok(false)
             } else {
-                self.last_response = self.inquire();
+                self.last_response = self.inquire().map_err(|e| {
+                    println!("Error while requesting forecast: {:?}", e)
+                }).ok();
+                return Ok(true);
             }
         }
-        Ok(())
+        Ok(false)
     }
 
     fn today(&self) -> Option<&DataPoint> {
@@ -185,16 +209,16 @@ impl WeatherInquirer {
         None
     }
 
-    fn tomorrow(&self) -> Option<&DataPoint> {
+    fn tomorrow(&self) -> Result<&DataPoint, failure::Error> {
         if self.last_response.is_some() {
-            let daily = self.last_response.as_ref().unwrap().daily.as_ref()?;
+            let daily = self.last_response.as_ref().unwrap().daily.as_ref().ok_or(JsonError::MissingField {name:"daily".to_owned()})?;
             let second = daily.data.get(2);
-            return second;
+            return second.ok_or(failure::Error::from(JsonError::ArrayIndex));
         }
-        None
+        Err(failure::Error::from(CustomError { msg: "No response from dark sky.".to_owned() }))
     }
 
-    fn inquire(&self) -> Option<ApiResponse> {
+    fn inquire(&self) -> Result<ApiResponse, failure::Error> {
         let config = &self.app_state.config;
         let api_key = config.dark_sky_api_key.clone();
         let reqwest_client = reqwest::Client::new();
@@ -208,19 +232,27 @@ impl WeatherInquirer {
             .lang(Lang::Ukranian)
             .units(Units::UK)
             .build();
-        let forecast_response = api_client.get_forecast(forecast_request).unwrap();
-        serde_json::from_reader(forecast_response).ok()
+        let forecast_response = api_client.get_forecast(forecast_request)?;
+        if !forecast_response.status().is_success() {
+            println!("Dark sky response: {:?}", forecast_response.status());
+            return Err(failure::Error::from(CustomError{msg: "Dark sky response failure".to_owned()}))
+        }
+        serde_json::from_reader(forecast_response).map_err(|e| {
+            failure::Error::from(e)
+        })
     }
 
     fn should_broadcast(&self) -> bool {
         let now = Utc::now();
-        if now.timestamp() - self.last_broadcast > 60*60*24  && (now.hour() > 19 && now.hour() < 21) {
+        println!("time is {}", now.hour());
+        if (now.timestamp() - self.last_broadcast > 60*60*24)  && (now.hour() >= 19 && now.hour() <= 21) {
+            println!("broadcasting");
             return true;
         }
         false
     }
 
-    fn broadcast_forecast(&mut self) -> Result<(), std::option::NoneError> {
+    fn broadcast_forecast(&mut self) -> Result<(), failure::Error> {
         if !self.should_broadcast() {
             return Ok(())
         }
@@ -229,11 +261,20 @@ impl WeatherInquirer {
             let dt = Utc.timestamp(day.time as i64, 0);
             let msg = format!("Прогноз на завтра {}.{}: \nТемпература: {:?} - {:?} \nОсадки: {:?} с вероятностью {}%", dt.day(),
                               dt.month(),
-                              day.temperature_low?,
-                              day.temperature_high?,
-                              day.precip_type.as_ref()?, day.precip_probability? * 100.0
+                              day.temperature_low.ok_or(
+                                  JsonError::MissingField{name:"temperature_low".to_owned()}
+                              )?,
+                              day.temperature_high.ok_or(
+                                  JsonError::MissingField{name:"temperature_high".to_owned()}
+                              )?,
+                              day.precip_type.as_ref().ok_or(
+                                  JsonError::MissingField{name:"precip_type".to_owned()}
+                              )?, day.precip_probability.ok_or(
+                    JsonError::MissingField{name:"precip_probability".to_owned()}
+                )? * 100.0
             );
-            self.app_state.viber.send_text_to_admin(msg.as_str()).map_err(|_|std::option::NoneError)?;
+            println!("Sending viber message");
+            self.app_state.viber.send_text_to_admin(msg.as_str())?;
         }
         self.last_broadcast = Utc::now().timestamp();
         Ok(())
@@ -245,7 +286,9 @@ impl Actor for WeatherInquirer {
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.run_interval(std::time::Duration::new(8, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
             _t.inquire_if_needed().ok();
-            _t.broadcast_forecast().ok();
+            _t.broadcast_forecast().map_err(|e| {
+                println!("Error broadcasting. {:?}", e);
+            });
         });
     }
 
