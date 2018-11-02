@@ -311,7 +311,7 @@ fn main() {
                     .resource("/api/acc_data/", |r| r.f(acc_data))
                     .resource("/api/viber/webhook", |r| r.method(http::Method::POST).f(viber_webhook))
             })
-            .bind(format!("127.0.0.1:{}", get_server_port()))
+            .bind(format!("0.0.0.0:{}", get_server_port()))
             .unwrap().workers(1)
             .shutdown_timeout(1)
             .start();
