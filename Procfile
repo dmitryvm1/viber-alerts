@@ -1,1 +1,1 @@
-web: ./target/release/weather-alert
+web: ./target/release/viber_alerts
