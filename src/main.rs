@@ -19,16 +19,12 @@ extern crate chrono;
 use chrono::prelude::*;
 use forecast::*;
 use std::sync::Arc;
-use std::sync::Mutex;
-use serde_json::Value;
-use actix_web::http::{header, Method, StatusCode};
-use actix_web::middleware::session::{self, RequestSession};
 use actix_web::{
-    error, fs, http, middleware, App, AsyncResponder, Error, HttpMessage, HttpRequest, Responder, HttpResponse, Path,
+    http, middleware, App, AsyncResponder, Error, HttpMessage, HttpRequest, Responder, HttpResponse, Path,
     Result,
 };
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use std::{env, io};
+// use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+use std::{env};
 use futures::{Future, Stream};
 use actix::{AsyncContext, Arbiter, Actor, Context, Running};
 use actix_web::server::HttpServer;
@@ -218,7 +214,7 @@ impl WeatherInquirer {
 
     fn should_broadcast(&self) -> bool {
         let now = Utc::now();
-        if now.timestamp() - self.last_broadcast > 60*60*24  && (now.hour() > 7 && now.hour() < 9) {
+        if now.timestamp() - self.last_broadcast > 60*60*24  && (now.hour() > 19 && now.hour() < 21) {
             return true;
         }
         false
@@ -237,7 +233,7 @@ impl WeatherInquirer {
                               day.temperature_high?,
                               day.precip_type.as_ref()?, day.precip_probability? * 100.0
             );
-            self.app_state.viber.send_text_to_admin(msg.as_str());
+            self.app_state.viber.send_text_to_admin(msg.as_str()).map_err(|_|std::option::NoneError)?;
         }
         self.last_broadcast = Utc::now().timestamp();
         Ok(())
@@ -248,8 +244,8 @@ impl Actor for WeatherInquirer {
     type Context  = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.run_interval(std::time::Duration::new(8, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
-            _t.inquire_if_needed();
-            _t.broadcast_forecast();
+            _t.inquire_if_needed().ok();
+            _t.broadcast_forecast().ok();
         });
     }
 
