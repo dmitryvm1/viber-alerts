@@ -274,6 +274,10 @@ impl AppState {
     }
 }
 
+fn get_server_port() -> u16 {
+    env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8080)
+}
+
 fn main() {
     env::set_var("RUST_LOG", "actix_web=debug");
     env::set_var("RUST_BACKTRACE", "1");
@@ -307,7 +311,7 @@ fn main() {
                     .resource("/api/acc_data/", |r| r.f(acc_data))
                     .resource("/api/viber/webhook", |r| r.method(http::Method::POST).f(viber_webhook))
             })
-            .bind("127.0.0.1:8080")
+            .bind(format!("127.0.0.1:{}", get_server_port()))
             .unwrap().workers(2)
             .shutdown_timeout(1)
             .start();
