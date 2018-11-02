@@ -216,17 +216,30 @@ impl WeatherInquirer {
         serde_json::from_reader(forecast_response).ok()
     }
 
-    fn broadcast_forecast(&self) -> Result<(), std::option::NoneError> {
-        let day = self.tomorrow()?;
-        let dt = Utc.timestamp(day.time as i64, 0);
-        let msg = format!("Прогноз на завтра {}.{}: \nТемпература: {:?} - {:?} \nОсадки: {:?} с вероятностью {}%" ,
-                          dt.day(),
-                          dt.month(),
-                          day.temperature_low?,
-                          day.temperature_high?,
-            day.precip_type.as_ref()?, day.precip_probability? * 100.0
-        );
-        self.app_state.viber.send_text_to_admin(msg.as_str());
+    fn should_broadcast(&self) -> bool {
+        let now = Utc::now();
+        if now.timestamp() - self.last_broadcast > 60*60*24  || (now.hour() > 7 && now.hour() < 9) {
+            return true;
+        }
+        false
+    }
+
+    fn broadcast_forecast(&mut self) -> Result<(), std::option::NoneError> {
+        if !self.should_broadcast() {
+            return Ok(())
+        }
+        {
+            let day = self.tomorrow()?;
+            let dt = Utc.timestamp(day.time as i64, 0);
+            let msg = format!("Прогноз на завтра {}.{}: \nТемпература: {:?} - {:?} \nОсадки: {:?} с вероятностью {}%", dt.day(),
+                              dt.month(),
+                              day.temperature_low?,
+                              day.temperature_high?,
+                              day.precip_type.as_ref()?, day.precip_probability? * 100.0
+            );
+            self.app_state.viber.send_text_to_admin(msg.as_str());
+        }
+        self.last_broadcast = Utc::now().timestamp();
         Ok(())
     }
 }
