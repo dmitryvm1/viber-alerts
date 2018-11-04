@@ -46,6 +46,11 @@ pub mod config;
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
 
+#[cfg(debug_assertions)]
+static QUERY_INTERVAL:u64 = 60;
+#[cfg(not(debug_assertions))]
+static QUERY_INTERVAL:u64 = 6;
+
 #[derive(Debug, Fail)]
 enum JsonError {
     #[fail(display = "field is missing: {}", name)]
@@ -95,13 +100,26 @@ impl Viber {
             }).wait()
     }
 
-    pub fn send_text_to_admin(&self, text: &str) -> std::result::Result<(), failure::Error> {
-        viber::raw::send_text_message(text, self.admin_id.as_str(), &self.api_key)
+    pub fn broadcast_text(&self, text: &str) -> std::result::Result<(), failure::Error> {
+        for m in &self.subscribers {
+            if self.send_text_to(text, m.id.as_str()).is_err() {
+                warn!("Could not send forecast to user: {}", m.name);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn send_text_to(&self, text: &str, to: &str) -> std::result::Result<(), failure::Error> {
+        viber::raw::send_text_message(text, to, &self.api_key)
             .from_err()
             .and_then(|response| {
                 let body = response.body().poll()?;
                 Ok(())
             }).wait()
+    }
+
+    pub fn send_text_to_admin(&self, text: &str) -> std::result::Result<(), failure::Error> {
+        self.send_text_to(text, self.admin_id.as_str())
     }
 }
 
@@ -300,7 +318,7 @@ impl WeatherInquirer {
                 )? * 100.0
             );
             info!("Sending viber message");
-            self.app_state.viber.lock().unwrap().send_text_to_admin(msg.as_str())?;
+            self.app_state.viber.lock().unwrap().broadcast_text(msg.as_str())?;
         }
         self.last_broadcast = Utc::now().timestamp();
         Ok(())
@@ -311,7 +329,7 @@ impl Actor for WeatherInquirer {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
         self.app_state.viber.lock().unwrap().update_subscribers();
-        ctx.run_interval(std::time::Duration::new(8, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
+        ctx.run_interval(std::time::Duration::new(QUERY_INTERVAL, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
             if _t.inquire_if_needed().map_err(|e| {
                 error!("Error inquiring weather forecast. {}", e.as_fail());
             }).is_ok() {
