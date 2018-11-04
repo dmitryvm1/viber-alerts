@@ -33,6 +33,10 @@ use std::io::Read;
 use futures::{Future, Stream};
 use actix::{AsyncContext, Arbiter, Actor, Context, Running};
 use actix_web::server::HttpServer;
+use std::borrow::BorrowMut;
+use std::sync::Mutex;
+use viber::messages::AccountInfo;
+use viber::messages::Member;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -61,6 +65,7 @@ struct CustomError {
 struct Viber {
     api_key: String,
     admin_id: String,
+    subscribers: Vec<Member>
 }
 
 impl Viber {
@@ -68,7 +73,26 @@ impl Viber {
         Viber {
             api_key,
             admin_id,
+            subscribers: Vec::with_capacity(16)
         }
+    }
+
+    pub fn update_subscribers(&mut self) -> std::result::Result<(), failure::Error> {
+        viber::raw::get_account_data(&self.api_key)
+            .from_err()
+            .and_then(|response| {
+                response.body()
+                    .from_err()
+                    .and_then(|data| {
+                        let account_info: AccountInfo = serde_json::from_slice(&data)?;
+                        self.subscribers.clear();
+                        for member in account_info.members {
+                            println!("Member: {:?}", member);
+                            self.subscribers.push(member);
+                        }
+                        Ok(())
+                    })
+            }).wait()
     }
 
     pub fn send_text_to_admin(&self, text: &str) -> std::result::Result<(), failure::Error> {
@@ -276,7 +300,7 @@ impl WeatherInquirer {
                 )? * 100.0
             );
             info!("Sending viber message");
-            self.app_state.viber.send_text_to_admin(msg.as_str())?;
+            self.app_state.viber.lock().unwrap().send_text_to_admin(msg.as_str())?;
         }
         self.last_broadcast = Utc::now().timestamp();
         Ok(())
@@ -286,6 +310,7 @@ impl WeatherInquirer {
 impl Actor for WeatherInquirer {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
+        self.app_state.viber.lock().unwrap().update_subscribers();
         ctx.run_interval(std::time::Duration::new(8, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
             if _t.inquire_if_needed().map_err(|e| {
                 error!("Error inquiring weather forecast. {}", e.as_fail());
@@ -304,7 +329,7 @@ impl Actor for WeatherInquirer {
 
 struct AppState {
     pub config: config::Config,
-    pub viber: Viber,
+    pub viber: Mutex<Viber>,
 }
 
 impl AppState {
@@ -313,7 +338,7 @@ impl AppState {
         let admin_id = config.admin_id.clone();
         AppState {
             config: config,
-            viber: Viber::new(viber_api_key.unwrap(), admin_id.unwrap()),
+            viber: Mutex::new(Viber::new(viber_api_key.unwrap(), admin_id.unwrap())),
         }
     }
 }

@@ -6,12 +6,12 @@ pub struct Location {
     lon: f64,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Members {
-    id: String,
-    name: String,
-    avatar: String,
-    role: String,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Member {
+    pub id: String,
+    pub name: String,
+    pub avatar: String,
+    pub role: String,
 }
 
 pub enum EventTypes<'a>  {
@@ -43,21 +43,21 @@ impl<'a> EventTypes<'a>{
 
 #[derive(Serialize, Deserialize)]
 pub struct AccountInfo {
-    status: i64,
-    status_message: String,
-    id: String,
-    name: String,
-    uri: String,
-    icon: String,
-    background: String,
-    category: String,
-    subcategory: String,
-    location: Location,
-    country: String,
-    webhook: String,
-    event_types: Vec<String>,
-    members: Vec<Members>,
-    subscribers_count: i64,
+    pub status: i64,
+    pub status_message: String,
+    pub id: String,
+    pub name: String,
+    pub uri: String,
+    pub icon: String,
+    pub background: String,
+    pub category: String,
+    pub subcategory: String,
+    pub location: Location,
+    pub country: String,
+    pub webhook: String,
+    pub event_types: Vec<String>,
+    pub members: Vec<Member>,
+    pub subscribers_count: i64,
 }
 
 #[derive(Serialize, Deserialize)]
