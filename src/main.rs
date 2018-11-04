@@ -204,6 +204,7 @@ struct WeatherInquirer {
     app_state: AppStateType,
     last_response: Option<ApiResponse>,
     last_broadcast: i64,
+    last_subscriber_update: i64
 }
 
 impl WeatherInquirer {
@@ -212,6 +213,7 @@ impl WeatherInquirer {
             app_state,
             last_response: None,
             last_broadcast: 0,
+            last_subscriber_update: 0
         }
     }
 }
@@ -329,12 +331,13 @@ impl Actor for WeatherInquirer {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.run_interval(std::time::Duration::new(QUERY_INTERVAL, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
-            if _t.app_state.viber.lock().unwrap().update_subscribers().is_err() {
-                warn!("Failed to read subscribers.");
-            }
+
             if _t.inquire_if_needed().map_err(|e| {
                 error!("Error inquiring weather forecast. {}", e.as_fail());
             }).is_ok() {
+                if _t.app_state.viber.lock().unwrap().update_subscribers().is_err() {
+                    warn!("Failed to read subscribers.");
+                }
                 _t.broadcast_forecast().map_err(|e| {
                     error!("Error broadcasting weather forecast. {}", e.as_fail());
                 });
