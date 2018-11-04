@@ -29,6 +29,7 @@ use actix_web::{
 };
 // use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use std::env;
+use std::io::Read;
 use futures::{Future, Stream};
 use actix::{AsyncContext, Arbiter, Actor, Context, Running};
 use actix_web::server::HttpServer;
@@ -182,15 +183,14 @@ impl WeatherInquirer {
             return Ok(true);
         } else {
             let today = Utc::now();
-            // check if the first forecast is for today:
+            // check if the second daily forecast is for today:
             let dt = {
                 let lr = self.last_response.as_ref().unwrap();
                 let daily = lr.daily.as_ref().ok_or(JsonError::MissingField { name: "daily".to_owned() })?;
-                let first = daily.data.first().ok_or(JsonError::ArrayIndex)?;
+                let first = daily.data.get(1).ok_or(JsonError::ArrayIndex)?;
                 Utc.timestamp(first.time as i64, 0)
             };
             if dt.day() == today.day() {
-                debug!("Skipping dark sky request. We have the data for today.");
                 return Ok(false);
             } else {
                 self.last_response = self.inquire().map_err(|e| {
@@ -234,9 +234,12 @@ impl WeatherInquirer {
             .lang(Lang::Ukranian)
             .units(Units::UK)
             .build();
-        let forecast_response = api_client.get_forecast(forecast_request)?;
+        info!("Requesting weather forecast");
+        let mut forecast_response = api_client.get_forecast(forecast_request)?;
         if !forecast_response.status().is_success() {
-            return Err(failure::Error::from(CustomError { msg: "Dark sky response failure".to_owned() }));
+            let mut body = String::new();
+            forecast_response.read_to_string(&mut body)?;
+            return Err(failure::Error::from(CustomError { msg: format!("Dark sky response failure: {}", body) }));
         }
         serde_json::from_reader(forecast_response).map_err(|e| {
             failure::Error::from(e)
