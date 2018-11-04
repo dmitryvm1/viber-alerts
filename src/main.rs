@@ -47,9 +47,9 @@ static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
 
 #[cfg(debug_assertions)]
-static QUERY_INTERVAL:u64 = 60;
-#[cfg(not(debug_assertions))]
 static QUERY_INTERVAL:u64 = 6;
+#[cfg(not(debug_assertions))]
+static QUERY_INTERVAL:u64 = 60;
 
 #[derive(Debug, Fail)]
 enum JsonError {
@@ -328,8 +328,10 @@ impl WeatherInquirer {
 impl Actor for WeatherInquirer {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.app_state.viber.lock().unwrap().update_subscribers();
         ctx.run_interval(std::time::Duration::new(QUERY_INTERVAL, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
+            if _t.app_state.viber.lock().unwrap().update_subscribers().is_err() {
+                warn!("Failed to read subscribers.");
+            }
             if _t.inquire_if_needed().map_err(|e| {
                 error!("Error inquiring weather forecast. {}", e.as_fail());
             }).is_ok() {
