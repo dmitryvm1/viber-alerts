@@ -33,7 +33,6 @@ use futures::{Future, Stream};
 use actix::{AsyncContext, Arbiter, Actor, Context, Running};
 use actix_web::server::HttpServer;
 use std::sync::Mutex;
-use std::cell::Cell;
 use std::sync::RwLock;
 use std::collections::HashMap;
 use actix_web::error;
@@ -174,11 +173,8 @@ impl AppState {
     pub fn new(config: config::Config) -> AppState {
         let viber_api_key = config.viber_api_key.clone();
         let admin_id = config.admin_id.clone();
-        let template_path = concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*");
 
-        info!("Template path: {}", template_path);
-        let tera =
-            compile_templates!(template_path);
+        let tera = tera::Tera::new("templates/**/*").expect("Failed to load templates");
         AppState {
             config: config,
             viber: Mutex::new(viber::Viber::new(viber_api_key.unwrap(), admin_id.unwrap())),

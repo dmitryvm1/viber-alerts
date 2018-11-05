@@ -3,7 +3,6 @@ use AppStateType;
 use chrono::*;
 use forecast::*;
 use std::io::Read;
-use std::borrow::BorrowMut;
 
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
