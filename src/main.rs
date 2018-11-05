@@ -66,7 +66,10 @@ fn index(
         let s = state
             .template
             .render("index.html", &ctx)
-            .map_err(|_| error::ErrorInternalServerError("Template error"))?;
+            .map_err(|_| {
+                info!("Template error!");
+                error::ErrorInternalServerError("Template error")
+            })?;
 
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
