@@ -174,8 +174,11 @@ impl AppState {
     pub fn new(config: config::Config) -> AppState {
         let viber_api_key = config.viber_api_key.clone();
         let admin_id = config.admin_id.clone();
+        let template_path = concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*");
+
+        info!("Template path: {}", template_path);
         let tera =
-            compile_templates!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*"));
+            compile_templates!(template_path);
         AppState {
             config: config,
             viber: Mutex::new(viber::Viber::new(viber_api_key.unwrap(), admin_id.unwrap())),
