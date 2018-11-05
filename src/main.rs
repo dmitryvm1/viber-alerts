@@ -19,11 +19,13 @@ extern crate reqwest;
 extern crate chrono;
 #[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate tera;
 
 use weather::*;
 use std::sync::Arc;
 use actix_web::{
-    http, middleware, App, AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse
+    http, middleware, App, AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse, Query, State,
 };
 // use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use std::env;
@@ -33,6 +35,8 @@ use actix_web::server::HttpServer;
 use std::sync::Mutex;
 use std::cell::Cell;
 use std::sync::RwLock;
+use std::collections::HashMap;
+use actix_web::error;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -45,22 +49,22 @@ static QUERY_INTERVAL:u64 = 6;
 #[cfg(not(debug_assertions))]
 static QUERY_INTERVAL:u64 = 60;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct MyObj {
-    name: String,
-    number: i32,
-}
-
 pub type AppStateType = Arc<AppState>;
 
-fn index(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    req.json()
-        .from_err()  // convert all errors into `Error`
-        .and_then(|val: MyObj| {
-            println!("model: {:?}", val);
-            Ok(HttpResponse::Ok().json(val))  // <- send response
-        })
-        .responder()
+fn index(
+    (state, query): (State<AppStateType>, Query<HashMap<String, String>>),
+) -> Result<HttpResponse, Error> {
+   // let s = if let Some(name) = query.get("name") {
+        // <- submitted form
+        let mut ctx = tera::Context::new();
+    //  ctx.add("name", &name.to_owned());
+        ctx.insert("text", &"Welcome!".to_owned());
+        let s = state
+            .template
+            .render("index.html", &ctx)
+            .map_err(|_| error::ErrorInternalServerError("Template error"))?;
+
+    Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
 fn viber_webhook(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>> {
@@ -152,17 +156,21 @@ impl Actor for WeatherInquirer {
 pub struct AppState {
     pub config: config::Config,
     pub viber: Mutex<viber::Viber>,
-    pub last_broadcast: RwLock<i64>
+    pub last_broadcast: RwLock<i64>,
+    template: tera::Tera, // <- store tera template in application state
 }
 
 impl AppState {
     pub fn new(config: config::Config) -> AppState {
         let viber_api_key = config.viber_api_key.clone();
         let admin_id = config.admin_id.clone();
+        let tera =
+            compile_templates!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*"));
         AppState {
             config: config,
             viber: Mutex::new(viber::Viber::new(viber_api_key.unwrap(), admin_id.unwrap())),
-            last_broadcast: RwLock::new(0)
+            last_broadcast: RwLock::new(0),
+            template: tera
         }
     }
 }
@@ -197,7 +205,7 @@ fn main() {
             move || {
                 App::with_state(state.clone())
                     .middleware(middleware::Logger::default())
-                    .resource("/api/", |r| r.f(index))
+                    .resource("/", |r| r.method(http::Method::GET).with(index))
                     .resource("/api/send_message/", |r| r.f(send_message))
                     .resource("/api/send_file_message/", |r| r.f(send_file_message))
                     .resource("/api/acc_data/", |r| r.f(acc_data))
