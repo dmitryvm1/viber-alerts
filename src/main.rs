@@ -66,8 +66,8 @@ fn index(
         let s = state
             .template
             .render("index.html", &ctx)
-            .map_err(|_| {
-                info!("Template error!");
+            .map_err(|e| {
+                error!("Template error! {:?}", e);
                 error::ErrorInternalServerError("Template error")
             })?;
 
