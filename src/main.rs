@@ -31,6 +31,8 @@ use futures::{Future, Stream};
 use actix::{AsyncContext, Arbiter, Actor, Context, Running};
 use actix_web::server::HttpServer;
 use std::sync::Mutex;
+use std::cell::Cell;
+use std::sync::RwLock;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -38,13 +40,10 @@ pub mod viber;
 pub mod config;
 pub mod weather;
 
-
 #[cfg(debug_assertions)]
 static QUERY_INTERVAL:u64 = 6;
 #[cfg(not(debug_assertions))]
 static QUERY_INTERVAL:u64 = 60;
-
-
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
@@ -153,6 +152,7 @@ impl Actor for WeatherInquirer {
 pub struct AppState {
     pub config: config::Config,
     pub viber: Mutex<viber::Viber>,
+    pub last_broadcast: RwLock<i64>
 }
 
 impl AppState {
@@ -162,6 +162,7 @@ impl AppState {
         AppState {
             config: config,
             viber: Mutex::new(viber::Viber::new(viber_api_key.unwrap(), admin_id.unwrap())),
+            last_broadcast: RwLock::new(0)
         }
     }
 }

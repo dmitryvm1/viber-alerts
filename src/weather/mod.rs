@@ -3,6 +3,7 @@ use AppStateType;
 use chrono::*;
 use forecast::*;
 use std::io::Read;
+use std::borrow::BorrowMut;
 
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
@@ -26,7 +27,6 @@ struct CustomError {
 pub struct WeatherInquirer {
     pub app_state: AppStateType,
     pub last_response: Option<ApiResponse>,
-    pub last_broadcast: i64,
     pub last_subscriber_update: i64
 }
 
@@ -35,7 +35,6 @@ impl WeatherInquirer {
         WeatherInquirer {
             app_state,
             last_response: None,
-            last_broadcast: 0,
             last_subscriber_update: 0
         }
     }
@@ -115,7 +114,7 @@ impl WeatherInquirer {
 
     fn should_broadcast(&self) -> bool {
         let now = Utc::now().with_timezone(&FixedOffset::east(2*3600));
-        if (now.timestamp() - self.last_broadcast > 60 * 60 * 24) && (now.hour() >= 19 && now.hour() <= 21) {
+        if (now.timestamp() - *self.app_state.last_broadcast.read().unwrap() > 60 * 60 * 24) && (now.hour() >= 19 && now.hour() <= 21) {
             return true;
         }
         debug!("Should broadcast: false. Hour: {}", now.hour());
@@ -152,7 +151,10 @@ impl WeatherInquirer {
             // self.app_state.viber.lock().unwrap().broadcast_text(msg.as_str())?;
             self.app_state.viber.lock().unwrap().send_text_to_admin(msg.as_str())?;
         }
-        self.last_broadcast = Utc::now().timestamp();
+        {
+            let st = &self.app_state;
+            *st.last_broadcast.write().unwrap() = Utc::now().with_timezone(&FixedOffset::east(2 * 3600)).timestamp();
+        }
         Ok(())
     }
 }
