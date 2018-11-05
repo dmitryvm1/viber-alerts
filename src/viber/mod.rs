@@ -8,7 +8,7 @@ pub mod messages;
 pub struct Viber {
     api_key: String,
     admin_id: String,
-    subscribers: Vec<messages::Member>
+    pub subscribers: Vec<messages::Member>
 }
 
 impl Viber {

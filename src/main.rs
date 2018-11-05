@@ -37,7 +37,7 @@ use std::cell::Cell;
 use std::sync::RwLock;
 use std::collections::HashMap;
 use actix_web::error;
-
+use chrono::TimeZone;
 static APP_NAME: &str = "viber_alerts";
 
 pub mod viber;
@@ -59,6 +59,10 @@ fn index(
         let mut ctx = tera::Context::new();
     //  ctx.add("name", &name.to_owned());
         ctx.insert("text", &"Welcome!".to_owned());
+        let ts = *state.last_broadcast.read().unwrap();
+
+        ctx.insert("last_broadcast", &chrono::Utc.timestamp(ts, 0).to_rfc2822());
+        ctx.insert("members", &state.viber.lock().unwrap().subscribers);
         let s = state
             .template
             .render("index.html", &ctx)
@@ -129,6 +133,9 @@ fn acc_data(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Er
 impl Actor for WeatherInquirer {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
+        if self.app_state.viber.lock().unwrap().update_subscribers().is_err() {
+            warn!("Failed to read subscribers.");
+        };
         ctx.run_interval(std::time::Duration::new(QUERY_INTERVAL, 0), |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
             match _t.inquire_if_needed() {
                 Err(e) => {

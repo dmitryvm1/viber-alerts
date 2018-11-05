@@ -114,7 +114,9 @@ impl WeatherInquirer {
 
     fn should_broadcast(&self) -> bool {
         let now = Utc::now().with_timezone(&FixedOffset::east(2*3600));
-        if (now.timestamp() - *self.app_state.last_broadcast.read().unwrap() > 60 * 60 * 24) && (now.hour() >= 19 && now.hour() <= 21) {
+        let since_last_bc = now.timestamp() - *self.app_state.last_broadcast.read().unwrap();
+        debug!("Since last broadcast: {}", since_last_bc);
+        if (since_last_bc  > 60 * 60 * 24) && (now.hour() >= 19 && now.hour() <= 23) {
             return true;
         }
         debug!("Should broadcast: false. Hour: {}", now.hour());
