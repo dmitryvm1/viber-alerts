@@ -135,6 +135,9 @@ fn acc_data(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Er
 impl Actor for WeatherInquirer {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
+        self.download_image().map_err(|e| {
+            warn!("Image not downloaded. {:?}", e);
+        });
         if self.app_state.viber.lock().unwrap().update_subscribers().is_err() {
             warn!("Failed to read subscribers.");
         };

@@ -3,6 +3,11 @@ use AppStateType;
 use chrono::*;
 use forecast::*;
 use std::io::Read;
+use futures::Future;
+use std::fs::File;
+use actix_web::HttpMessage;
+use std::io::Write;
+use actix_web::*;
 
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
@@ -64,6 +69,30 @@ impl WeatherInquirer {
                 return Ok(true);
             }
         }
+    }
+
+    pub fn download_image(&self) -> Result<(), actix_web::error::Error> {
+        let date = Utc::now();
+        let name = format!("{}-{}-{}.jpg", date.year(), date.month(), date.day());
+        client::get(format!("{}weather/kiev/{}", self.app_state.config.domain_root_url.as_ref().unwrap(), &name))
+            .finish().unwrap()
+            .send()
+            .from_err()
+            .and_then(move|response|{
+                response.body()
+                    .from_err()
+                    .and_then(move|data| {
+                        if response.status().is_success() {
+                            let mut file = File::create(format!("static/{}", name))?;
+                            file.write_all(&data.to_vec()).map_err(|e| {
+                                error::ErrorInternalServerError("Failed to write weather image.")
+                            })
+                        } else {
+                            Ok(())
+                        }
+                    })
+            })
+            .wait()
     }
 
     #[allow(dead_code)]
