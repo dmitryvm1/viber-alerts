@@ -9,6 +9,7 @@ use actix_web::HttpMessage;
 use std::io::Write;
 use actix_web::*;
 
+
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
 

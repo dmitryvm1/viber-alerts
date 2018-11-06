@@ -37,6 +37,7 @@ use std::sync::RwLock;
 use std::collections::HashMap;
 use actix_web::error;
 use chrono::TimeZone;
+use actix_web::*;
 static APP_NAME: &str = "viber_alerts";
 
 pub mod viber;
@@ -135,9 +136,7 @@ fn acc_data(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Er
 impl Actor for WeatherInquirer {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.download_image().map_err(|e| {
-            warn!("Image not downloaded. {:?}", e);
-        });
+
         if self.app_state.viber.lock().unwrap().update_subscribers().is_err() {
             warn!("Failed to read subscribers.");
         };
@@ -148,6 +147,9 @@ impl Actor for WeatherInquirer {
                 },
                 Ok(q) => {
                     if q {
+                        self.download_image().map_err(|e| {
+                            warn!("Image not downloaded. {:?}", e);
+                        });
                         if _t.app_state.viber.lock().unwrap().update_subscribers().is_err() {
                             warn!("Failed to read subscribers.");
                         }
@@ -217,6 +219,10 @@ fn main() {
             move || {
                 App::with_state(state.clone())
                     .middleware(middleware::Logger::default())
+                    .handler(
+                        "/static",
+                        fs::StaticFiles::new("static/")
+                            .unwrap())
                     .resource("/", |r| r.method(http::Method::GET).with(index))
                     .resource("/api/send_message/", |r| r.f(send_message))
                     .resource("/api/send_file_message/", |r| r.f(send_file_message))
