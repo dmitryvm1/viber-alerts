@@ -57,6 +57,19 @@ impl Viber {
             }).wait()
     }
 
+    pub fn send_file_message_to(&self, url: &str, name: &str, to: &str) ->  std::result::Result<(), failure::Error> {
+        raw::send_file_message(url, name, 0, to, &self.api_key)
+            .from_err()
+            .and_then(|response| {
+                response.body().poll()?;
+                Ok(())
+            }).wait()
+    }
+
+    pub fn send_file_message_to_admin(&self, url: &str, name: &str) ->  std::result::Result<(), failure::Error> {
+        self.send_file_message_to(url, name, self.admin_id.as_str())
+    }
+    
     pub fn send_text_to_admin(&self, text: &str) -> std::result::Result<(), failure::Error> {
         self.send_text_to(text, self.admin_id.as_str())
     }

@@ -101,20 +101,7 @@ fn send_message(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse
         }).responder()
 }
 
-fn send_file_message(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    let state = req.state();
-    let config: &config::Config = &state.config;
-    viber::raw::send_file_message(format!("{}css/styles.css", config.domain_root_url.as_ref().unwrap().as_str()).as_str(),
-                                  "styles.css", 3506, config.admin_id.as_ref().unwrap().as_str(),
-                                  config.viber_api_key.as_ref().unwrap())
-        .from_err()
-        .and_then(|response| {
-            response.body().poll()?;
-            Ok(HttpResponse::Ok()
-                .content_type("text/plain")
-                .body("sent"))
-        }).responder()
-}
+
 
 fn acc_data(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>> {
     let state = req.state();
@@ -225,7 +212,6 @@ fn main() {
                             .unwrap())
                     .resource("/", |r| r.method(http::Method::GET).with(index))
                     .resource("/api/send_message/", |r| r.f(send_message))
-                    .resource("/api/send_file_message/", |r| r.f(send_file_message))
                     .resource("/api/acc_data/", |r| r.f(acc_data))
                     .resource("/api/viber/webhook", |r| r.method(http::Method::POST).f(viber_webhook))
             })
