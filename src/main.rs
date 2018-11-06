@@ -147,7 +147,7 @@ impl Actor for WeatherInquirer {
                 },
                 Ok(q) => {
                     if q {
-                        self.download_image().map_err(|e| {
+                        _t.download_image().map_err(|e| {
                             warn!("Image not downloaded. {:?}", e);
                         });
                         if _t.app_state.viber.lock().unwrap().update_subscribers().is_err() {
