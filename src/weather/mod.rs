@@ -72,10 +72,9 @@ impl WeatherInquirer {
         }
     }
 
-    pub fn download_image(&self) -> Result<(), actix_web::error::Error> {
-        let date = Utc::now();
-        let name = format!("{}-{}-{}.jpg", date.year(), date.month(), date.day());
-        client::get(format!("{}weather/kiev/{}", self.app_state.config.domain_root_url.as_ref().unwrap(), &name))
+    pub fn download_image(&self, name: &str) -> Result<(), actix_web::error::Error> {
+
+        client::get(format!("{}weather/kiev/{}", self.app_state.config.domain_root_url.as_ref().unwrap(), name))
             .finish().unwrap()
             .send()
             .from_err()
@@ -145,17 +144,33 @@ impl WeatherInquirer {
         let now = Utc::now().with_timezone(&FixedOffset::east(2*3600));
         let since_last_bc = now.timestamp() - *self.app_state.last_broadcast.read().unwrap();
         debug!("Since last broadcast: {}", since_last_bc);
-        if (since_last_bc  > 60 * 60 * 24) && (now.hour() >= 19 && now.hour() <= 23) {
+        if (since_last_bc  > 60 * 60 * 24) && (now.hour() >= 13 && now.hour() <= 23) {
             return true;
         }
         debug!("Should broadcast: false. Hour: {}", now.hour());
         false
     }
 
+    pub fn send_image(&self) -> Result<(), failure::Error> {
+        use std::path;
+        let date = Utc::now();
+        let name = format!("{}-{}-{}.jpg", date.year(), date.month(), date.day());
+        let thumb = format!("{}-{}-{}t.jpg", date.year(), date.month(), date.day());
+        let file_path = format!("static/{}", &name);
+        let path = path::Path::new(file_path.as_str());
+        if path.exists() {
+            let url = format!("{}api/static/{}", self.app_state.config.hosting_root_url.as_ref().unwrap(), &name);
+            let thumb_url = format!("{}api/static/{}", self.app_state.config.hosting_root_url.as_ref().unwrap(), &thumb);
+            self.app_state.viber.lock().unwrap().send_picture_message_to_admin(url.as_str(), thumb_url.as_str(), "Прогноз на 7 дней")
+        } else {
+            Err((CustomError { msg: "no image to send for today".to_owned()}).into())
+        }
+    }
     pub fn broadcast_forecast(&mut self) -> Result<(), failure::Error> {
         if !self.should_broadcast() {
             return Ok(());
         }
+        self.send_image().expect("no file msg");
         {
             let day = self.tomorrow()?;
             let dt = Utc.timestamp(day.time as i64, 0);

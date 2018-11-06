@@ -36,6 +36,7 @@ use std::sync::Mutex;
 use std::sync::RwLock;
 use std::collections::HashMap;
 use actix_web::error;
+use chrono::Datelike;
 use chrono::TimeZone;
 use actix_web::*;
 static APP_NAME: &str = "viber_alerts";
@@ -134,7 +135,13 @@ impl Actor for WeatherInquirer {
                 },
                 Ok(q) => {
                     if q {
-                        _t.download_image().map_err(|e| {
+                        let date = chrono::Utc::now();
+                        let name = format!("{}-{}-{}.jpg", date.year(), date.month(), date.day());
+                        _t.download_image(name.as_str()).map_err(|e| {
+                            warn!("Image not downloaded. {:?}", e);
+                        });
+                        let name = format!("{}-{}-{}t.jpg", date.year(), date.month(), date.day());
+                        _t.download_image(name.as_str()).map_err(|e| {
                             warn!("Image not downloaded. {:?}", e);
                         });
                         if _t.app_state.viber.lock().unwrap().update_subscribers().is_err() {
@@ -207,7 +214,7 @@ fn main() {
                 App::with_state(state.clone())
                     .middleware(middleware::Logger::default())
                     .handler(
-                        "/static",
+                        "/api/static",
                         fs::StaticFiles::new("static/")
                             .unwrap())
                     .resource("/", |r| r.method(http::Method::GET).with(index))

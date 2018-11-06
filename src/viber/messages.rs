@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Location {
     lat: f64,
     lon: f64,
@@ -41,7 +41,7 @@ impl<'a> EventTypes<'a>{
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AccountInfo {
     pub status: i64,
     pub status_message: String,
@@ -60,7 +60,7 @@ pub struct AccountInfo {
     pub subscribers_count: i64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct TextMessage<'s> {
     pub receiver: Cow<'s, str>,
     pub min_api_version: i64,
@@ -71,7 +71,7 @@ pub struct TextMessage<'s> {
     pub text: Cow<'s, str>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FileMessage<'s> {
     pub receiver: Cow<'s, str>,
     pub min_api_version: i64,
@@ -84,7 +84,20 @@ pub struct FileMessage<'s> {
     pub file_name: Cow<'s, str>
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PictureMessage<'s> {
+    pub receiver: Cow<'s, str>,
+    pub min_api_version: i64,
+    pub sender: Sender<'s>,
+    pub tracking_data: Cow<'s, str>,
+    #[serde(rename = "type")]
+    pub _type: Cow<'s, str>,
+    pub media: Cow<'s, str>,
+    pub text: Cow<'s, str>,
+    pub thumbnail: Cow<'s, str>
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct VideoMessage<'s> {
     pub receiver: Cow<'s, str>,
     pub min_api_version: i64,
@@ -98,7 +111,7 @@ pub struct VideoMessage<'s> {
     pub thumbnail: Cow<'s, str>
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Sender<'s> {
     pub name: Cow<'s, str>,
     pub avatar: Cow<'s, str>,

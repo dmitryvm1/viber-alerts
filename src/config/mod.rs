@@ -5,7 +5,8 @@ pub struct Config {
     pub viber_api_key: Option<String>,
     pub admin_id: Option<String>,
     pub domain_root_url: Option<String>,
-    pub dark_sky_api_key: Option<String>
+    pub dark_sky_api_key: Option<String>,
+    pub hosting_root_url: Option<String>
 }
 
 impl Config {
@@ -31,7 +32,8 @@ impl Config {
             admin_id: std::env::var("ADMIN_ID").ok(),
             viber_api_key: std::env::var("VIBER_API_KEY").ok(),
             dark_sky_api_key: std::env::var("DARK_SKY_API_KEY").ok(),
-            domain_root_url: std::env::var("DOMAIN_ROOT_URL").ok()
+            domain_root_url: std::env::var("DOMAIN_ROOT_URL").ok(),
+            hosting_root_url: std::env::var("HOSTING_ROOT_URL").ok(),
         }
     }
 

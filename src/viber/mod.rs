@@ -11,6 +11,12 @@ pub struct Viber {
     pub subscribers: Vec<messages::Member>
 }
 
+#[derive(Debug, Fail)]
+#[fail(display = "Viber API error: {}", msg)]
+struct ViberApiError {
+    msg: String
+}
+
 impl Viber {
     pub fn new(api_key: String, admin_id: String) -> Viber {
         Viber {
@@ -61,15 +67,36 @@ impl Viber {
         raw::send_file_message(url, name, 0, to, &self.api_key)
             .from_err()
             .and_then(|response| {
-                response.body().poll()?;
-                Ok(())
+                if response.status().is_success() {
+                    response.body().poll()?;
+                    Ok(())
+                } else {
+                    Err((ViberApiError {msg: "error sending file msg".to_owned()}).into())
+                }
             }).wait()
     }
 
     pub fn send_file_message_to_admin(&self, url: &str, name: &str) ->  std::result::Result<(), failure::Error> {
         self.send_file_message_to(url, name, self.admin_id.as_str())
     }
-    
+
+    pub fn send_picture_message_to(&self, url: &str, thumb: &str, text: &str, to: &str) ->  std::result::Result<(), failure::Error> {
+        raw::send_picture_message(url, text, thumb, to, &self.api_key)
+            .from_err()
+            .and_then(|response| {
+                if response.status().is_success() {
+                    response.body().poll()?;
+                    Ok(())
+                } else {
+                    Err((ViberApiError {msg: "error sending file msg".to_owned()}).into())
+                }
+            }).wait()
+    }
+
+    pub fn send_picture_message_to_admin(&self, url: &str, thumb: &str, text: &str) ->  std::result::Result<(), failure::Error> {
+        self.send_picture_message_to(url, text, thumb, self.admin_id.as_str())
+    }
+
     pub fn send_text_to_admin(&self, text: &str) -> std::result::Result<(), failure::Error> {
         self.send_text_to(text, self.admin_id.as_str())
     }
