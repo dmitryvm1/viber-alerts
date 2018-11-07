@@ -144,7 +144,7 @@ impl WeatherInquirer {
         let now = Utc::now().with_timezone(&FixedOffset::east(2*3600));
         let since_last_bc = now.timestamp() - *self.app_state.last_broadcast.read().unwrap();
         debug!("Since last broadcast: {}", since_last_bc);
-        if (since_last_bc  > 60 * 60 * 24) && (now.hour() >= 13 && now.hour() <= 23) {
+        if (since_last_bc  > 60 * 60 * 24) && (now.hour() >= 14 && now.hour() <= 23) {
             return true;
         }
         debug!("Should broadcast: false. Hour: {}", now.hour());
@@ -170,7 +170,9 @@ impl WeatherInquirer {
         if !self.should_broadcast() {
             return Ok(());
         }
-        self.send_image().expect("no file msg");
+        if self.send_image().is_err() {
+            error!("no file msg");
+        }
         {
             let day = self.tomorrow()?;
             let dt = Utc.timestamp(day.time as i64, 0);
