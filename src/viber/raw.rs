@@ -1,11 +1,13 @@
 use actix_web;
-use futures::Future;
 use actix_web::client::{ClientResponse, SendRequestError};
+use futures::Future;
 use std::borrow::Cow;
 
 use viber::messages;
 
-pub fn get_account_data(auth: &String) -> impl Future<Item=ClientResponse, Error=SendRequestError> {
+pub fn get_account_data(
+    auth: &String,
+) -> impl Future<Item = ClientResponse, Error = SendRequestError> {
     actix_web::client::get("https://chatapi.viber.com/pa/get_account_info")
         .header("X-Viber-Auth-Token", auth.clone())
         .finish()
@@ -13,7 +15,12 @@ pub fn get_account_data(auth: &String) -> impl Future<Item=ClientResponse, Error
         .send()
 }
 
-pub fn send_video_message(url: &str, size: usize, receiver: &str, auth: &String) -> impl Future<Item=ClientResponse, Error=SendRequestError> {
+pub fn send_video_message(
+    url: &str,
+    size: usize,
+    receiver: &str,
+    auth: &String,
+) -> impl Future<Item = ClientResponse, Error = SendRequestError> {
     let video_message = messages::VideoMessage {
         _type: Cow::from("video"),
         min_api_version: 1,
@@ -21,12 +28,12 @@ pub fn send_video_message(url: &str, size: usize, receiver: &str, auth: &String)
         media: Cow::from(url),
         sender: messages::Sender {
             avatar: Cow::from(""),
-            name: Cow::from("Bot")
+            name: Cow::from("Bot"),
         },
         duration: 0,
         thumbnail: Cow::from(""),
         size: size,
-        tracking_data: Cow::from("")
+        tracking_data: Cow::from(""),
     };
 
     actix_web::client::post("https://chatapi.viber.com/pa/send_message")
@@ -36,7 +43,13 @@ pub fn send_video_message(url: &str, size: usize, receiver: &str, auth: &String)
         .send()
 }
 
-pub fn send_file_message(url: &str, file_name: &str, size: usize, receiver: &str, auth: &String) -> impl Future<Item=ClientResponse, Error=SendRequestError> {
+pub fn send_file_message(
+    url: &str,
+    file_name: &str,
+    size: usize,
+    receiver: &str,
+    auth: &String,
+) -> impl Future<Item = ClientResponse, Error = SendRequestError> {
     let file_message = messages::FileMessage {
         _type: Cow::from("file"),
         min_api_version: 1,
@@ -44,11 +57,11 @@ pub fn send_file_message(url: &str, file_name: &str, size: usize, receiver: &str
         media: Cow::from(url),
         sender: messages::Sender {
             avatar: Cow::from(""),
-            name: Cow::from("Bot")
+            name: Cow::from("Bot"),
         },
         file_name: Cow::from(file_name),
         size: size,
-        tracking_data: Cow::from("")
+        tracking_data: Cow::from(""),
     };
 
     actix_web::client::post("https://chatapi.viber.com/pa/send_message")
@@ -58,7 +71,13 @@ pub fn send_file_message(url: &str, file_name: &str, size: usize, receiver: &str
         .send()
 }
 
-pub fn send_picture_message(url: &str, thumb: &str, text: &str, receiver: &str, auth: &String) -> impl Future<Item=ClientResponse, Error=SendRequestError> {
+pub fn send_picture_message(
+    url: &str,
+    thumb: &str,
+    text: &str,
+    receiver: &str,
+    auth: &String,
+) -> impl Future<Item = ClientResponse, Error = SendRequestError> {
     let picture_message = messages::PictureMessage {
         _type: Cow::from("picture"),
         min_api_version: 1,
@@ -66,11 +85,11 @@ pub fn send_picture_message(url: &str, thumb: &str, text: &str, receiver: &str, 
         media: Cow::from(url),
         sender: messages::Sender {
             avatar: Cow::from(""),
-            name: Cow::from("Bot")
+            name: Cow::from("Bot"),
         },
         text: Cow::from(text),
         thumbnail: Cow::from(thumb),
-        tracking_data: Cow::from("")
+        tracking_data: Cow::from(""),
     };
     debug!("{:?}", picture_message);
     actix_web::client::post("https://chatapi.viber.com/pa/send_message")
@@ -80,7 +99,11 @@ pub fn send_picture_message(url: &str, thumb: &str, text: &str, receiver: &str, 
         .send()
 }
 
-pub fn send_text_message(text: &str, receiver: &str, auth: &String) -> impl Future<Item=ClientResponse, Error=SendRequestError> {
+pub fn send_text_message(
+    text: &str,
+    receiver: &str,
+    auth: &String,
+) -> impl Future<Item = ClientResponse, Error = SendRequestError> {
     let text_message = messages::TextMessage {
         _type: Cow::from("text"),
         min_api_version: 1,
@@ -88,9 +111,9 @@ pub fn send_text_message(text: &str, receiver: &str, auth: &String) -> impl Futu
         text: Cow::from(text),
         sender: messages::Sender {
             avatar: Cow::from(""),
-            name: Cow::from("Bot")
+            name: Cow::from("Bot"),
         },
-        tracking_data: Cow::from("")
+        tracking_data: Cow::from(""),
     };
 
     actix_web::client::post("https://chatapi.viber.com/pa/send_message")

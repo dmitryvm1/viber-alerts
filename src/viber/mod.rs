@@ -1,20 +1,20 @@
-use futures::Future;
 use actix_web::HttpMessage;
+use futures::Future;
 // use std::io::Read;
 
-pub mod raw;
 pub mod messages;
+pub mod raw;
 
 pub struct Viber {
     api_key: String,
     admin_id: String,
-    pub subscribers: Vec<messages::Member>
+    pub subscribers: Vec<messages::Member>,
 }
 
 #[derive(Debug, Fail)]
 #[fail(display = "Viber API error: {}", msg)]
 struct ViberApiError {
-    msg: String
+    msg: String,
 }
 
 impl Viber {
@@ -22,7 +22,7 @@ impl Viber {
         Viber {
             api_key,
             admin_id,
-            subscribers: Vec::with_capacity(16)
+            subscribers: Vec::with_capacity(16),
         }
     }
 
@@ -30,18 +30,17 @@ impl Viber {
         raw::get_account_data(&self.api_key)
             .from_err()
             .and_then(|response| {
-                response.body()
-                    .from_err()
-                    .and_then(|data| {
-                        let account_info: messages::AccountInfo = serde_json::from_slice(&data)?;
-                        self.subscribers.clear();
-                        for member in account_info.members {
-                            info!("Member: {:?}", member);
-                            self.subscribers.push(member);
-                        }
-                        Ok(())
-                    })
-            }).wait()
+                response.body().from_err().and_then(|data| {
+                    let account_info: messages::AccountInfo = serde_json::from_slice(&data)?;
+                    self.subscribers.clear();
+                    for member in account_info.members {
+                        info!("Member: {:?}", member);
+                        self.subscribers.push(member);
+                    }
+                    Ok(())
+                })
+            })
+            .wait()
     }
 
     pub fn broadcast_text(&self, text: &str) -> std::result::Result<(), failure::Error> {
@@ -60,10 +59,16 @@ impl Viber {
             .and_then(|response| {
                 let body = response.body().poll()?;
                 Ok(())
-            }).wait()
+            })
+            .wait()
     }
 
-    pub fn send_file_message_to(&self, url: &str, name: &str, to: &str) ->  std::result::Result<(), failure::Error> {
+    pub fn send_file_message_to(
+        &self,
+        url: &str,
+        name: &str,
+        to: &str,
+    ) -> std::result::Result<(), failure::Error> {
         raw::send_file_message(url, name, 0, to, &self.api_key)
             .from_err()
             .and_then(|response| {
@@ -71,16 +76,30 @@ impl Viber {
                     response.body().poll()?;
                     Ok(())
                 } else {
-                    Err((ViberApiError {msg: "error sending file msg".to_owned()}).into())
+                    Err((ViberApiError {
+                        msg: "error sending file msg".to_owned(),
+                    })
+                    .into())
                 }
-            }).wait()
+            })
+            .wait()
     }
 
-    pub fn send_file_message_to_admin(&self, url: &str, name: &str) ->  std::result::Result<(), failure::Error> {
+    pub fn send_file_message_to_admin(
+        &self,
+        url: &str,
+        name: &str,
+    ) -> std::result::Result<(), failure::Error> {
         self.send_file_message_to(url, name, self.admin_id.as_str())
     }
 
-    pub fn send_picture_message_to(&self, url: &str, thumb: &str, text: &str, to: &str) ->  std::result::Result<(), failure::Error> {
+    pub fn send_picture_message_to(
+        &self,
+        url: &str,
+        thumb: &str,
+        text: &str,
+        to: &str,
+    ) -> std::result::Result<(), failure::Error> {
         raw::send_picture_message(url, text, thumb, to, &self.api_key)
             .from_err()
             .and_then(|response| {
@@ -88,12 +107,21 @@ impl Viber {
                     response.body().poll()?;
                     Ok(())
                 } else {
-                    Err((ViberApiError {msg: "error sending file msg".to_owned()}).into())
+                    Err((ViberApiError {
+                        msg: "error sending file msg".to_owned(),
+                    })
+                    .into())
                 }
-            }).wait()
+            })
+            .wait()
     }
 
-    pub fn send_picture_message_to_admin(&self, url: &str, thumb: &str, text: &str) ->  std::result::Result<(), failure::Error> {
+    pub fn send_picture_message_to_admin(
+        &self,
+        url: &str,
+        thumb: &str,
+        text: &str,
+    ) -> std::result::Result<(), failure::Error> {
         self.send_picture_message_to(url, text, thumb, self.admin_id.as_str())
     }
 

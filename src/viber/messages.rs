@@ -14,19 +14,19 @@ pub struct Member {
     pub role: String,
 }
 
-pub enum EventTypes<'a>  {
-  Subscribed,
-  Unsubscribed,
-  ConversationStarted,
-  Delivered,
-  Failed,
-  Message,
-  Seen,
-  #[doc(hidden)]
-  Unknown(&'a str)
+pub enum EventTypes<'a> {
+    Subscribed,
+    Unsubscribed,
+    ConversationStarted,
+    Delivered,
+    Failed,
+    Message,
+    Seen,
+    #[doc(hidden)]
+    Unknown(&'a str),
 }
 
-impl<'a> EventTypes<'a>{
+impl<'a> EventTypes<'a> {
     pub fn value(&self) -> &'a str {
         match self {
             EventTypes::Subscribed => "subscribed",
@@ -36,7 +36,7 @@ impl<'a> EventTypes<'a>{
             EventTypes::Failed => "failed",
             EventTypes::Message => "message",
             EventTypes::Seen => "seen",
-            EventTypes::Unknown(s) => s
+            EventTypes::Unknown(s) => s,
         }
     }
 }
@@ -81,7 +81,7 @@ pub struct FileMessage<'s> {
     pub _type: Cow<'s, str>,
     pub media: Cow<'s, str>,
     pub size: usize,
-    pub file_name: Cow<'s, str>
+    pub file_name: Cow<'s, str>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -94,7 +94,7 @@ pub struct PictureMessage<'s> {
     pub _type: Cow<'s, str>,
     pub media: Cow<'s, str>,
     pub text: Cow<'s, str>,
-    pub thumbnail: Cow<'s, str>
+    pub thumbnail: Cow<'s, str>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -108,7 +108,7 @@ pub struct VideoMessage<'s> {
     pub media: Cow<'s, str>,
     pub size: usize,
     pub duration: u16,
-    pub thumbnail: Cow<'s, str>
+    pub thumbnail: Cow<'s, str>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
