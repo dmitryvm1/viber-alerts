@@ -7,6 +7,7 @@ pub struct Config {
     pub domain_root_url: Option<String>,
     pub dark_sky_api_key: Option<String>,
     pub hosting_root_url: Option<String>,
+    pub database_url: Option<String>,
 }
 
 impl Config {
@@ -34,6 +35,7 @@ impl Config {
             dark_sky_api_key: std::env::var("DARK_SKY_API_KEY").ok(),
             domain_root_url: std::env::var("DOMAIN_ROOT_URL").ok(),
             hosting_root_url: std::env::var("HOSTING_ROOT_URL").ok(),
+            database_url: std::env::var("DATABASE_URL").ok(),
         }
     }
 

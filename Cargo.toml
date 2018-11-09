@@ -22,3 +22,6 @@ victoria-dom = "0.1"
 openssl = "0.10.11"
 forecast = "2.0.0"
 tera = "0.11.19"
+diesel = { version = "^1.3.3", features = ["postgres", "r2d2"] }
+r2d2 = "0.8.3"
+uuid = { version = "0.5", features = ["serde", "v4"] }

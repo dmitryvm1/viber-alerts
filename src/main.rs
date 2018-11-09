@@ -8,6 +8,8 @@ extern crate serde_derive;
 extern crate futures;
 extern crate json;
 extern crate openssl;
+extern crate r2d2;
+extern crate diesel;
 extern crate victoria_dom;
 #[macro_use]
 extern crate log;
@@ -31,6 +33,8 @@ use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 use std::sync::Arc;
 use weather::*;
 // use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+use diesel::prelude::*;
+use diesel::r2d2::{ConnectionManager, Pool};
 use actix::{Actor, Arbiter, AsyncContext, Context, Running};
 use actix_web::error;
 use actix_web::server::HttpServer;
@@ -222,7 +226,7 @@ fn login(req: &HttpRequest<AppStateType>) -> HttpResponse {
         let password = q.get("password").unwrap();
         println!("u: {}, p: {}", user, password);
     }
-    
+
     req.remember("user1".to_owned());
     HttpResponse::Found().header("location", "/").finish()
 }
@@ -254,6 +258,13 @@ fn main() {
         let state = AppState::new(config::Config::read(APP_NAME));
         let state = Arc::new(state);
         let _state = state.clone();
+        info!("Connecting to the database:");
+        let db_url = state.config.database_url.clone().expect("No db url.");
+        let manager = ConnectionManager::<PgConnection>::new(db_url);
+        let pool = r2d2::Pool::builder()
+            .build(manager)
+            .expect("Failed to create pool.");
+
         let addr = HttpServer::new(move || {
             App::with_state(state.clone())
                 .middleware(middleware::Logger::default())
