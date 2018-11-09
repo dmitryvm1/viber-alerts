@@ -26,6 +26,8 @@ use actix_web::{
     http, middleware, App, AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse, Query,
     State,
 };
+use actix_web::middleware::identity::RequestIdentity;
+use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 use std::sync::Arc;
 use weather::*;
 // use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
@@ -53,7 +55,7 @@ static QUERY_INTERVAL: u64 = 60;
 
 pub type AppStateType = Arc<AppState>;
 
-fn index(
+fn list(
     (state, query): (State<AppStateType>, Query<HashMap<String, String>>),
 ) -> Result<HttpResponse, Error> {
     // let s = if let Some(name) = query.get("name") {
@@ -209,6 +211,27 @@ fn get_server_port() -> u16 {
         .unwrap_or(8080)
 }
 
+fn index(req: &HttpRequest<AppStateType>) -> String {
+    format!("Hello {}", req.identity().unwrap_or("Anonymous".to_owned()))
+}
+
+fn login(req: &HttpRequest<AppStateType>) -> HttpResponse {
+    {
+        let q = req.query();
+        let user = q.get("user").unwrap();
+        let password = q.get("password").unwrap();
+        println!("u: {}, p: {}", user, password);
+    }
+    
+    req.remember("user1".to_owned());
+    HttpResponse::Found().header("location", "/").finish()
+}
+
+fn logout(req: &HttpRequest<AppStateType>) -> HttpResponse {
+    req.forget();
+    HttpResponse::Found().header("location", "/").finish()
+}
+
 fn main() {
     env::set_var("RUST_LOG", "viber_alerts=debug");
     env::set_var("RUST_BACKTRACE", "1");
@@ -234,8 +257,16 @@ fn main() {
         let addr = HttpServer::new(move || {
             App::with_state(state.clone())
                 .middleware(middleware::Logger::default())
+                .middleware(IdentityService::new(
+                    CookieIdentityPolicy::new(&[0; 32])
+                        .name("auth-example")
+                        .secure(false),
+                ))
                 .handler("/api/static", fs::StaticFiles::new("static/").unwrap())
-                .resource("/", |r| r.method(http::Method::GET).with(index))
+                .resource("/login", |r| r.f(login))
+                .resource("/logout", |r| r.f(logout))
+                .resource("/", |r| r.f(index))
+                .resource("/list", |r| r.method(http::Method::GET).with(list))
                 .resource("/api/send_message/", |r| r.f(send_message))
                 .resource("/api/acc_data/", |r| r.f(acc_data))
                 .resource("/api/viber/webhook", |r| {
