@@ -1,4 +1,5 @@
 #![allow(unused_variables)]
+#![feature(custom_attribute)]
 #![feature(try_trait)]
 #![cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 extern crate actix_web;
@@ -9,6 +10,7 @@ extern crate futures;
 extern crate json;
 extern crate openssl;
 extern crate r2d2;
+#[macro_use]
 extern crate diesel;
 extern crate victoria_dom;
 #[macro_use]
@@ -46,11 +48,17 @@ use std::collections::HashMap;
 use std::env;
 use std::sync::Mutex;
 use std::sync::RwLock;
+use models::{Post, NewPost};
+use std::ops::Deref;
+
 static APP_NAME: &str = "viber_alerts";
 
 pub mod config;
 pub mod viber;
 pub mod weather;
+pub mod models;
+pub mod schema;
+
 
 #[cfg(debug_assertions)]
 static QUERY_INTERVAL: u64 = 6;
@@ -58,6 +66,7 @@ static QUERY_INTERVAL: u64 = 6;
 static QUERY_INTERVAL: u64 = 60;
 
 pub type AppStateType = Arc<AppState>;
+type PgPool = Pool<ConnectionManager<PgConnection>>;
 
 fn list(
     (state, query): (State<AppStateType>, Query<HashMap<String, String>>),
@@ -190,11 +199,12 @@ pub struct AppState {
     pub config: config::Config,
     pub viber: Mutex<viber::Viber>,
     pub last_broadcast: RwLock<i64>,
+    pub pool: PgPool,
     template: tera::Tera, // <- store tera template in application state
 }
 
 impl AppState {
-    pub fn new(config: config::Config) -> AppState {
+    pub fn new(config: config::Config, pool: PgPool) -> AppState {
         let viber_api_key = config.viber_api_key.clone();
         let admin_id = config.admin_id.clone();
 
@@ -204,6 +214,7 @@ impl AppState {
             viber: Mutex::new(viber::Viber::new(viber_api_key.unwrap(), admin_id.unwrap())),
             last_broadcast: RwLock::new(0),
             template: tera,
+            pool
         }
     }
 }
@@ -225,10 +236,29 @@ fn login(req: &HttpRequest<AppStateType>) -> HttpResponse {
         let user = q.get("user").unwrap();
         let password = q.get("password").unwrap();
         println!("u: {}, p: {}", user, password);
+
+    }
+    {
+        let pool = &req.state().pool;
+        let new_post = NewPost {
+            body: "test",
+            title: "title"
+        };
+        Post::insert(new_post, pool.get().unwrap().deref()).unwrap_or_else(|e| {
+            error!("Failed to insert post");
+            0
+        });
     }
 
     req.remember("user1".to_owned());
     HttpResponse::Found().header("location", "/").finish()
+}
+
+fn users(req: &HttpRequest<AppStateType>) -> HttpResponse {
+        let pool = &req.state().pool;
+        let users = Post::all(pool.get().unwrap().deref()).unwrap();
+
+    HttpResponse::Ok().body(format!("{:?}", users))
 }
 
 fn logout(req: &HttpRequest<AppStateType>) -> HttpResponse {
@@ -255,15 +285,18 @@ fn main() {
     //   builder.set_certificate_chain_file(fullchain_path.to_str().unwrap()).unwrap();
 
     let _server = Arbiter::start(move |_| {
-        let state = AppState::new(config::Config::read(APP_NAME));
-        let state = Arc::new(state);
-        let _state = state.clone();
+        let config = config::Config::read(APP_NAME);
         info!("Connecting to the database:");
-        let db_url = state.config.database_url.clone().expect("No db url.");
+        let db_url = config.database_url.clone().expect("No db url.");
         let manager = ConnectionManager::<PgConnection>::new(db_url);
         let pool = r2d2::Pool::builder()
             .build(manager)
             .expect("Failed to create pool.");
+
+        let state = AppState::new(config, pool);
+        let state = Arc::new(state);
+        let _state = state.clone();
+
 
         let addr = HttpServer::new(move || {
             App::with_state(state.clone())
@@ -277,6 +310,7 @@ fn main() {
                 .resource("/login", |r| r.f(login))
                 .resource("/logout", |r| r.f(logout))
                 .resource("/", |r| r.f(index))
+                .resource("/users", |r| r.f(users))
                 .resource("/list", |r| r.method(http::Method::GET).with(list))
                 .resource("/api/send_message/", |r| r.f(send_message))
                 .resource("/api/acc_data/", |r| r.f(acc_data))
