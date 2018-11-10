@@ -45,7 +45,7 @@ impl WeatherInquirer {
 impl WeatherInquirer {
     fn is_outdated(&self) -> Result<bool, failure::Error> {
         match self.last_response {
-            None => {Ok(true)},
+            None => Ok(true),
             Some(ref resp) => {
                 let today = Utc::now();
                 // check if the second daily forecast is for today:
@@ -152,13 +152,12 @@ impl WeatherInquirer {
     }
 
     pub fn try_broadcast(&mut self) {
-
-        let f = ||{
+        let runner = self.app_state.last_text_broadcast.write();
+        //16-20 UTC+2
+        runner.unwrap().daily(14, 18, &mut || {
             debug!("Trying to broadcast weather");
             self.broadcast_forecast().is_ok()
-        };
-        let mut runner = self.app_state.last_text_broadcast.write().unwrap();
-        runner.daily(15, 21, &f);
+        });
     }
 
     pub fn send_image(&self) -> Result<(), failure::Error> {
@@ -195,22 +194,21 @@ impl WeatherInquirer {
             .into())
         }
     }
-    pub fn broadcast_forecast(&mut self) -> Result<(), failure::Error> {
-        {
-            let day = self.tomorrow()?;
-            let dt = Utc.timestamp(day.time as i64, 0);
-            let (precip, probability) = match day.precip_type.as_ref() {
-                Some(p) => {
-                    let pr = match p {
-                        PrecipType::Rain => "Дождь",
-                        PrecipType::Snow => "Снег",
-                        PrecipType::Sleet => "Дождь со снегом",
-                    };
-                    (pr, day.precip_probability.unwrap())
-                }
-                None => ("-", 0.0),
-            };
-            let msg = format!("Прогноз на завтра {}.{}: \nТемпература: {:?} - {:?} \nОсадки: {:?} с вероятностью {}%", dt.day(),
+    pub fn broadcast_forecast(&self) -> Result<(), failure::Error> {
+        let day = self.tomorrow()?;
+        let dt = Utc.timestamp(day.time as i64, 0);
+        let (precip, probability) = match day.precip_type.as_ref() {
+            Some(p) => {
+                let pr = match p {
+                    PrecipType::Rain => "Дождь",
+                    PrecipType::Snow => "Снег",
+                    PrecipType::Sleet => "Дождь со снегом",
+                };
+                (pr, day.precip_probability.unwrap())
+            }
+            None => ("-", 0.0),
+        };
+        let msg = format!("Прогноз на завтра {}.{}: \nТемпература: {:?} - {:?} \nОсадки: {:?} с вероятностью {}%", dt.day(),
                               dt.month(),
                               day.temperature_low.ok_or(
                                   JsonError::MissingField { name: "temperature_low".to_owned() }
@@ -218,14 +216,13 @@ impl WeatherInquirer {
                               day.temperature_high.ok_or(
                                   JsonError::MissingField { name: "temperature_high".to_owned() }
                               )?, precip, probability * 100.0);
-            info!("Sending viber message");
-            // self.app_state.viber.lock().unwrap().broadcast_text(msg.as_str())?;
-            self.app_state
-                .viber
-                .lock()
-                .unwrap()
-                .send_text_to_admin(msg.as_str())?;
-        }
+        info!("Sending viber message");
+        // self.app_state.viber.lock().unwrap().broadcast_text(msg.as_str())?;
+        self.app_state
+            .viber
+            .lock()
+            .unwrap()
+            .send_text_to_admin(msg.as_str())?;
         Ok(())
     }
 }

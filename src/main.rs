@@ -26,40 +26,39 @@ extern crate failure;
 #[macro_use]
 extern crate tera;
 
+use actix_web::middleware::identity::RequestIdentity;
+use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{
     http, middleware, App, AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse, Query,
     State,
 };
-use actix_web::middleware::identity::RequestIdentity;
-use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 use std::sync::Arc;
 use weather::*;
 // use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use diesel::prelude::*;
-use diesel::r2d2::{ConnectionManager, Pool};
 use actix::{Actor, Arbiter, AsyncContext, Context, Running};
 use actix_web::error;
 use actix_web::server::HttpServer;
 use actix_web::*;
 use chrono::Datelike;
 use chrono::TimeZone;
+use diesel::prelude::*;
+use diesel::r2d2::{ConnectionManager, Pool};
 use futures::{Future, Stream};
+use models::{NewPost, Post};
 use std::collections::HashMap;
 use std::env;
+use std::ops::Deref;
 use std::sync::Mutex;
 use std::sync::RwLock;
-use models::{Post, NewPost};
-use std::ops::Deref;
 
 static APP_NAME: &str = "viber_alerts";
 
 pub mod config;
+pub mod models;
 pub mod scheduler;
+pub mod schema;
 pub mod viber;
 pub mod weather;
-pub mod models;
-pub mod schema;
-
 
 #[cfg(debug_assertions)]
 static QUERY_INTERVAL: u64 = 6;
@@ -179,7 +178,6 @@ impl Actor for WeatherInquirer {
                             {
                                 warn!("Failed to read subscribers.");
                             }
-
                         }
                     }
                 };
@@ -212,7 +210,7 @@ impl AppState {
             viber: Mutex::new(viber::Viber::new(viber_api_key.unwrap(), admin_id.unwrap())),
             last_text_broadcast: RwLock::new(scheduler::TryTillSuccess::new()),
             template: tera,
-            pool
+            pool,
         }
     }
 }
@@ -234,13 +232,12 @@ fn login(req: &HttpRequest<AppStateType>) -> HttpResponse {
         let user = q.get("user").unwrap();
         let password = q.get("password").unwrap();
         println!("u: {}, p: {}", user, password);
-
     }
     {
         let pool = &req.state().pool;
         let new_post = NewPost {
             body: "test",
-            title: "title"
+            title: "title",
         };
         Post::insert(new_post, pool.get().unwrap().deref()).unwrap_or_else(|e| {
             error!("Failed to insert post");
@@ -253,8 +250,8 @@ fn login(req: &HttpRequest<AppStateType>) -> HttpResponse {
 }
 
 fn users(req: &HttpRequest<AppStateType>) -> HttpResponse {
-        let pool = &req.state().pool;
-        let users = Post::all(pool.get().unwrap().deref()).unwrap();
+    let pool = &req.state().pool;
+    let users = Post::all(pool.get().unwrap().deref()).unwrap();
 
     HttpResponse::Ok().body(format!("{:?}", users))
 }
@@ -294,7 +291,6 @@ fn main() {
         let state = AppState::new(config, pool);
         let state = Arc::new(state);
         let _state = state.clone();
-
 
         let addr = HttpServer::new(move || {
             App::with_state(state.clone())
