@@ -54,6 +54,7 @@ use std::ops::Deref;
 static APP_NAME: &str = "viber_alerts";
 
 pub mod config;
+pub mod scheduler;
 pub mod viber;
 pub mod weather;
 pub mod models;
@@ -76,7 +77,7 @@ fn list(
     let mut ctx = tera::Context::new();
     //  ctx.add("name", &name.to_owned());
     ctx.insert("text", &"Welcome!".to_owned());
-    let ts = *state.last_broadcast.read().unwrap();
+    let ts = state.last_text_broadcast.read().unwrap().last_success;
 
     ctx.insert("last_broadcast", &chrono::Utc.timestamp(ts, 0).to_rfc2822());
     ctx.insert("members", &state.viber.lock().unwrap().subscribers);
@@ -178,14 +179,11 @@ impl Actor for WeatherInquirer {
                             {
                                 warn!("Failed to read subscribers.");
                             }
-                            _t.broadcast_forecast()
-                                .map_err(|e| {
-                                    error!("Error broadcasting weather forecast. {}", e.as_fail());
-                                })
-                                .is_ok();
+
                         }
                     }
                 };
+                _t.try_broadcast();
             },
         );
     }
@@ -198,7 +196,7 @@ impl Actor for WeatherInquirer {
 pub struct AppState {
     pub config: config::Config,
     pub viber: Mutex<viber::Viber>,
-    pub last_broadcast: RwLock<i64>,
+    pub last_text_broadcast: RwLock<scheduler::TryTillSuccess>,
     pub pool: PgPool,
     template: tera::Tera, // <- store tera template in application state
 }
@@ -212,7 +210,7 @@ impl AppState {
         AppState {
             config: config,
             viber: Mutex::new(viber::Viber::new(viber_api_key.unwrap(), admin_id.unwrap())),
-            last_broadcast: RwLock::new(0),
+            last_text_broadcast: RwLock::new(scheduler::TryTillSuccess::new()),
             template: tera,
             pool
         }

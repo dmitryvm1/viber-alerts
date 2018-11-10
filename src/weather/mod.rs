@@ -43,34 +43,33 @@ impl WeatherInquirer {
 }
 
 impl WeatherInquirer {
+    fn is_outdated(&self) -> Result<bool, failure::Error> {
+        match self.last_response {
+            None => {Ok(true)},
+            Some(ref resp) => {
+                let today = Utc::now();
+                // check if the second daily forecast is for today:
+                let dt = {
+                    let daily = resp.daily.as_ref().ok_or(JsonError::MissingField {
+                        name: "daily".to_owned(),
+                    })?;
+                    let first = daily.data.get(1).ok_or(JsonError::ArrayIndex)?;
+                    Utc.timestamp(first.time as i64, 0)
+                };
+                Ok(dt.day() != today.day())
+            }
+        }
+    }
+
     pub fn inquire_if_needed(&mut self) -> Result<bool, failure::Error> {
-        if self.last_response.is_none() {
+        if self.is_outdated().ok().unwrap_or(true) {
             self.last_response = self
                 .inquire()
                 .map_err(|e| error!("Error while requesting forecast: {:?}", e.as_fail()))
                 .ok();
             return Ok(true);
-        } else {
-            let today = Utc::now();
-            // check if the second daily forecast is for today:
-            let dt = {
-                let lr = self.last_response.as_ref().unwrap();
-                let daily = lr.daily.as_ref().ok_or(JsonError::MissingField {
-                    name: "daily".to_owned(),
-                })?;
-                let first = daily.data.get(1).ok_or(JsonError::ArrayIndex)?;
-                Utc.timestamp(first.time as i64, 0)
-            };
-            if dt.day() == today.day() {
-                return Ok(false);
-            } else {
-                self.last_response = self
-                    .inquire()
-                    .map_err(|e| error!("Error while requesting forecast: {:?}", e.as_fail()))
-                    .ok();
-                return Ok(true);
-            }
         }
+        Ok(false)
     }
 
     pub fn download_image(&self, name: &str) -> Result<(), actix_web::error::Error> {
@@ -152,15 +151,14 @@ impl WeatherInquirer {
         serde_json::from_reader(forecast_response).map_err(|e| failure::Error::from(e))
     }
 
-    fn should_broadcast(&self) -> bool {
-        let now = Utc::now().with_timezone(&FixedOffset::east(2 * 3600));
-        let since_last_bc = now.timestamp() - *self.app_state.last_broadcast.read().unwrap();
-        debug!("Since last broadcast: {}", since_last_bc);
-        if (since_last_bc > 60 * 60 * 24) && (now.hour() >= 14 && now.hour() <= 23) {
-            return true;
-        }
-        debug!("Should broadcast: false. Hour: {}", now.hour());
-        false
+    pub fn try_broadcast(&mut self) {
+
+        let f = ||{
+            debug!("Trying to broadcast weather");
+            self.broadcast_forecast().is_ok()
+        };
+        let mut runner = self.app_state.last_text_broadcast.write().unwrap();
+        runner.daily(15, 21, &f);
     }
 
     pub fn send_image(&self) -> Result<(), failure::Error> {
@@ -198,12 +196,6 @@ impl WeatherInquirer {
         }
     }
     pub fn broadcast_forecast(&mut self) -> Result<(), failure::Error> {
-        if !self.should_broadcast() {
-            return Ok(());
-        }
-        if self.send_image().is_err() {
-            error!("no file msg");
-        }
         {
             let day = self.tomorrow()?;
             let dt = Utc.timestamp(day.time as i64, 0);
@@ -233,12 +225,6 @@ impl WeatherInquirer {
                 .lock()
                 .unwrap()
                 .send_text_to_admin(msg.as_str())?;
-        }
-        {
-            let st = &self.app_state;
-            *st.last_broadcast.write().unwrap() = Utc::now()
-                .with_timezone(&FixedOffset::east(2 * 3600))
-                .timestamp();
         }
         Ok(())
     }
