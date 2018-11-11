@@ -10,7 +10,7 @@ pub struct Location {
 pub struct Member {
     pub id: String,
     pub name: String,
-    pub avatar: String,
+    pub avatar: Option<String>,
     pub role: String,
 }
 

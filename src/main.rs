@@ -101,16 +101,14 @@ impl Actor for WeatherInquirer {
                             _t.download_image(name.as_str()).map_err(|e| {
                                 warn!("Image not downloaded. {:?}", e);
                             });
-                            if _t
-                                .app_state
+                            _t.app_state
                                 .viber
                                 .lock()
                                 .unwrap()
                                 .update_subscribers()
-                                .is_err()
-                            {
-                                warn!("Failed to read subscribers.");
-                            }
+                                .map_err(|e| {
+                                    warn!("Failed to read subscribers. {:?}", e);
+                                });
                         }
                     }
                 };
