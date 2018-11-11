@@ -26,11 +26,9 @@ extern crate failure;
 #[macro_use]
 extern crate tera;
 
-use actix_web::middleware::identity::RequestIdentity;
 use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{
-    http, middleware, App, AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse, Query,
-    State,
+    http, middleware, App
 };
 use std::sync::Arc;
 use weather::*;
@@ -59,7 +57,9 @@ pub mod scheduler;
 pub mod schema;
 pub mod viber;
 pub mod weather;
+pub mod api;
 
+// Interval between the task executions where all the notification/alert logic happens.
 #[cfg(debug_assertions)]
 static QUERY_INTERVAL: u64 = 6;
 #[cfg(not(debug_assertions))]
@@ -67,73 +67,6 @@ static QUERY_INTERVAL: u64 = 60;
 
 pub type AppStateType = Arc<AppState>;
 type PgPool = Pool<ConnectionManager<PgConnection>>;
-
-fn list(
-    (state, query): (State<AppStateType>, Query<HashMap<String, String>>),
-) -> Result<HttpResponse, Error> {
-    // let s = if let Some(name) = query.get("name") {
-    // <- submitted form
-    let mut ctx = tera::Context::new();
-    //  ctx.add("name", &name.to_owned());
-    ctx.insert("text", &"Welcome!".to_owned());
-    let ts = state.last_text_broadcast.read().unwrap().last_success;
-
-    ctx.insert("last_broadcast", &chrono::Utc.timestamp(ts, 0).to_rfc2822());
-    ctx.insert("members", &state.viber.lock().unwrap().subscribers);
-    let s = state.template.render("index.html", &ctx).map_err(|e| {
-        error!("Template error! {:?}", e);
-        error::ErrorInternalServerError("Template error")
-    })?;
-
-    Ok(HttpResponse::Ok().content_type("text/html").body(s))
-}
-
-fn viber_webhook(
-    req: &HttpRequest<AppStateType>,
-) -> Box<Future<Item = HttpResponse, Error = Error>> {
-    req.payload()
-        .concat2()
-        .from_err()
-        .and_then(|body| {
-            info!("{}", std::str::from_utf8(&body)?);
-            Ok(HttpResponse::Ok().content_type("text/plain").body(""))
-        })
-        .responder()
-}
-
-fn send_message(
-    req: &HttpRequest<AppStateType>,
-) -> Box<Future<Item = HttpResponse, Error = Error>> {
-    let state = req.state();
-    let config = &state.config;
-    let viber_api_key = &config.viber_api_key;
-    let key = &viber_api_key.as_ref();
-    viber::raw::send_text_message(
-        "Hi",
-        config.admin_id.as_ref().unwrap().as_str(),
-        key.unwrap(),
-    )
-    .from_err()
-    .and_then(|response| {
-        response.body().poll()?;
-        Ok(HttpResponse::Ok().content_type("text/plain").body("sent"))
-    })
-    .responder()
-}
-
-fn acc_data(req: &HttpRequest<AppStateType>) -> Box<Future<Item = HttpResponse, Error = Error>> {
-    let state = req.state();
-    let config: &config::Config = &state.config;
-    viber::raw::get_account_data(config.viber_api_key.as_ref().unwrap())
-        .from_err()
-        .and_then(|response| {
-            response.body().from_err().and_then(|data| {
-                let contents = String::from_utf8(data.to_vec()).unwrap_or("".to_owned());
-                Ok(HttpResponse::Ok().content_type("text/plain").body(contents))
-            })
-        })
-        .responder()
-}
 
 impl Actor for WeatherInquirer {
     type Context = Context<Self>;
@@ -222,45 +155,6 @@ fn get_server_port() -> u16 {
         .unwrap_or(8080)
 }
 
-fn index(req: &HttpRequest<AppStateType>) -> String {
-    format!("Hello {}", req.identity().unwrap_or("Anonymous".to_owned()))
-}
-
-fn login(req: &HttpRequest<AppStateType>) -> HttpResponse {
-    {
-        let q = req.query();
-        let user = q.get("user").unwrap();
-        let password = q.get("password").unwrap();
-        println!("u: {}, p: {}", user, password);
-    }
-    {
-        let pool = &req.state().pool;
-        let new_post = NewPost {
-            body: "test",
-            title: "title",
-        };
-        Post::insert(new_post, pool.get().unwrap().deref()).unwrap_or_else(|e| {
-            error!("Failed to insert post");
-            0
-        });
-    }
-
-    req.remember("user1".to_owned());
-    HttpResponse::Found().header("location", "/").finish()
-}
-
-fn users(req: &HttpRequest<AppStateType>) -> HttpResponse {
-    let pool = &req.state().pool;
-    let users = Post::all(pool.get().unwrap().deref()).unwrap();
-
-    HttpResponse::Ok().body(format!("{:?}", users))
-}
-
-fn logout(req: &HttpRequest<AppStateType>) -> HttpResponse {
-    req.forget();
-    HttpResponse::Found().header("location", "/").finish()
-}
-
 fn main() {
     env::set_var("RUST_LOG", "viber_alerts=debug");
     env::set_var("RUST_BACKTRACE", "1");
@@ -301,15 +195,15 @@ fn main() {
                         .secure(false),
                 ))
                 .handler("/api/static", fs::StaticFiles::new("static/").unwrap())
-                .resource("/login", |r| r.f(login))
-                .resource("/logout", |r| r.f(logout))
-                .resource("/", |r| r.f(index))
-                .resource("/users", |r| r.f(users))
-                .resource("/list", |r| r.method(http::Method::GET).with(list))
-                .resource("/api/send_message/", |r| r.f(send_message))
-                .resource("/api/acc_data/", |r| r.f(acc_data))
+                .resource("/login", |r| r.f(api::login))
+                .resource("/logout", |r| r.f(api::logout))
+                .resource("/", |r| r.f(api::index))
+                .resource("/users", |r| r.f(api::users))
+                .resource("/list", |r| r.method(http::Method::GET).with(api::list))
+                .resource("/api/send_message/", |r| r.f(api::send_message))
+                .resource("/api/acc_data/", |r| r.f(api::acc_data))
                 .resource("/api/viber/webhook", |r| {
-                    r.method(http::Method::POST).f(viber_webhook)
+                    r.method(http::Method::POST).f(api::viber_webhook)
                 })
         })
         .bind(format!("0.0.0.0:{}", get_server_port()))
