@@ -102,11 +102,11 @@ pub fn send_picture_message(
         .send()
 }
 
-pub fn send_text_message<'s>(
+pub fn send_text_message(
     text: &str,
     receiver: &str,
     auth: &String,
-    kb: Option<messages::Keyboard<'s>>
+    kb: Option<messages::Keyboard>
 ) -> impl Future<Item = ClientResponse, Error = SendRequestError> {
     let text_message = messages::TextMessage {
         _type: Cow::from("text"),

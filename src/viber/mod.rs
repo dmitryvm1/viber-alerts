@@ -6,8 +6,8 @@ pub mod messages;
 pub mod raw;
 
 pub struct Viber {
-    api_key: String,
-    admin_id: String,
+    pub api_key: String,
+    pub admin_id: String,
     pub subscribers: Vec<messages::Member>,
 }
 
@@ -53,7 +53,7 @@ impl Viber {
         Ok(())
     }
 
-    pub fn send_text_to<'s>(&self, text: &str, to: &str, kb: Option<messages::Keyboard<'s>>) -> std::result::Result<(), failure::Error> {
+    pub fn send_text_to(&self, text: &str, to: &str, kb: Option<messages::Keyboard>) -> std::result::Result<(), failure::Error> {
         raw::send_text_message(text, to, &self.api_key, kb)
             .from_err()
             .and_then(|response| {

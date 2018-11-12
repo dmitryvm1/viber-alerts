@@ -236,7 +236,7 @@ impl WeatherInquirer {
             .viber
             .lock()
             .unwrap()
-            .send_text_to_admin(msg.as_str())?;
+            .send_text_to_admin(msg.as_str(), None)?;
         Ok(())
     }
 }

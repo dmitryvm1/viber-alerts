@@ -48,6 +48,7 @@ use std::env;
 use std::ops::Deref;
 use std::sync::Mutex;
 use std::sync::RwLock;
+use actix::Recipient;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -130,7 +131,7 @@ impl AppState {
             viber: Mutex::new(viber::Viber::new(viber_api_key.unwrap(), admin_id.unwrap())),
             last_text_broadcast: RwLock::new(scheduler::TryTillSuccess::new()),
             template: tera,
-            pool,
+            pool
         }
     }
 }
@@ -160,46 +161,50 @@ fn main() {
     //       .unwrap();
     //   builder.set_certificate_chain_file(fullchain_path.to_str().unwrap()).unwrap();
 
-    let _server = Arbiter::start(move |_| {
-        let config = config::Config::read(APP_NAME);
-        info!("Connecting to the database:");
-        let db_url = config.database_url.clone().expect("No db url.");
-        let manager = ConnectionManager::<PgConnection>::new(db_url);
-        let pool = r2d2::Pool::builder()
-            .build(manager)
-            .expect("Failed to create pool.");
+    let config = config::Config::read(APP_NAME);
+    info!("Connecting to the database:");
+    let db_url = config.database_url.clone().expect("No db url.");
+    let manager = ConnectionManager::<PgConnection>::new(db_url);
+    let pool = r2d2::Pool::builder()
+        .build(manager)
+        .expect("Failed to create pool.");
 
-        let state = AppState::new(config, pool);
-        let state = Arc::new(state);
-        let _state = state.clone();
+    let state = AppState::new(config, pool);
+    let state = Arc::new(state);
+    let _state = state.clone();
 
-        let addr = HttpServer::new(move || {
-            App::with_state(state.clone())
-                .middleware(middleware::Logger::default())
-                .middleware(IdentityService::new(
-                    CookieIdentityPolicy::new(&[0; 32])
-                        .name("auth-example")
-                        .secure(false),
-                ))
-                .handler("/api/static", fs::StaticFiles::new("static/").unwrap())
-                .resource("/login", |r| r.f(api::login))
-                .resource("/logout", |r| r.f(api::logout))
-                .resource("/", |r| r.f(api::index))
-                .resource("/users", |r| r.f(api::users))
-                .resource("/list", |r| r.method(http::Method::GET).with(api::list))
-                .resource("/api/send_message/", |r| r.f(api::send_message))
-                .resource("/api/acc_data/", |r| r.f(api::acc_data))
-                .resource("/api/viber/webhook", |r| {
-                    r.method(http::Method::POST).f(api::viber_webhook)
-                })
-        })
+
+    /*let _server = Arbiter::start(move |ctx: &mut Context<_>| {
+
+        weather::WeatherInquirer::new(_state)
+    });
+
+*/
+    let addr = HttpServer::new(move || {
+        App::with_state(state.clone())
+            .middleware(middleware::Logger::default())
+            .middleware(IdentityService::new(
+                CookieIdentityPolicy::new(&[0; 32])
+                    .name("auth-example")
+                    .secure(false),
+            ))
+            .handler("/api/static", fs::StaticFiles::new("static/").unwrap())
+            .resource("/login", |r| r.f(api::login))
+            .resource("/logout", |r| r.f(api::logout))
+            .resource("/", |r| r.f(api::index))
+            .resource("/users", |r| r.f(api::users))
+            .resource("/list", |r| r.method(http::Method::GET).with(api::list))
+            .resource("/api/send_message/", |r| r.f(api::send_message))
+            .resource("/api/acc_data/", |r| r.f(api::acc_data))
+            .resource("/api/viber/webhook/", |r| {
+                r.method(http::Method::POST).f(api::viber_webhook)
+            })
+    })
         .bind(format!("0.0.0.0:{}", get_server_port()))
         .unwrap()
         .workers(1)
         .shutdown_timeout(1)
         .start();
-        weather::WeatherInquirer::new(_state)
-    });
 
     let _ = sys.run();
 }

@@ -14,6 +14,7 @@ pub struct Member {
     pub role: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum EventTypes<'a> {
     Subscribed,
     Unsubscribed,
@@ -25,6 +26,7 @@ pub enum EventTypes<'a> {
     #[doc(hidden)]
     Unknown(&'a str),
 }
+
 
 impl<'a> EventTypes<'a> {
     pub fn value(&self) -> &'a str {
@@ -134,4 +136,27 @@ pub struct VideoMessage<'s> {
 pub struct Sender<'s> {
     pub name: Cow<'s, str>,
     pub avatar: Cow<'s, str>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct User<'s> {
+    pub id: Cow<'s, str>,
+    pub name: Cow<'s, str>,
+    pub avatar: Cow<'s, str>,
+    pub country: Cow<'s, str>,
+    pub language: Cow<'s, str>,
+    pub api_version: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CallbackMessage<'s> {
+    pub event: Cow<'s, str>,
+    pub timestamp: u64,
+    pub message_token: u64,
+    pub user_id: Cow<'s, str>,
+    #[serde(rename = "type")]
+    pub _type: Option<Cow<'s, str>>,
+    pub context: Option<Cow<'s, str>>,
+    pub user: Option<User<'s>>,
+    pub subscribed: Option<bool>
 }

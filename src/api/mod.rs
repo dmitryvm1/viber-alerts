@@ -1,4 +1,4 @@
-use AppStateType;
+use super::AppStateType;
 use actix_web::*;
 use std::collections::HashMap;
 use models::Post;
@@ -6,7 +6,11 @@ use models::NewPost;
 use futures::prelude::*;
 use chrono::TimeZone;
 use std::ops::Deref;
+use viber::*;
+use std::borrow::Borrow;
 use actix_web::middleware::identity::RequestIdentity;
+
+
 
 pub fn list(
     (state, query): (State<AppStateType>, Query<HashMap<String, String>>),
@@ -30,15 +34,23 @@ pub fn list(
 
 pub fn viber_webhook(
     req: &HttpRequest<AppStateType>,
-) -> Box<Future<Item = HttpResponse, Error = Error>> {
+) ->  Box<Future<Item = HttpResponse, Error = Error>> {
+    let key = req.state().viber.lock().unwrap().api_key.clone();
     req.payload()
         .concat2()
         .from_err()
-        .and_then(|body| {
-            info!("{}", std::str::from_utf8(&body)?);
+        .and_then(move|body| {
+            let cb_msg: messages::CallbackMessage  = serde_json::from_slice(&body)?;
+            info!("{:?}", cb_msg);
+            {
+                if cb_msg.event.eq(&std::borrow::Cow::from("conversation_started")) {
+                    let user = cb_msg.user.unwrap();
+                    raw::send_text_message("Hi", &user.id.to_string(), &key , None).wait();
+                };
+            }
             Ok(HttpResponse::Ok().content_type("text/plain").body(""))
-        })
-        .responder()
+        }).responder()
+
 }
 
 
