@@ -45,17 +45,17 @@ impl<'a> EventTypes<'a> {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Button<'s> {
-    ActionType: Cow<'s, str>,
-    ActionBody: Cow<'s, str>,
-    Text: Cow<'s, str>,
-    TextSize: Cow<'s, str>,
+    pub ActionType: Cow<'s, str>,
+    pub ActionBody: Cow<'s, str>,
+    pub Text: Cow<'s, str>,
+    pub TextSize: Cow<'s, str>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Keyboard<'s> {
-    Type: String,
-    DefaultHeight: bool,
-    Buttons: Vec<Button<'s>>,
+    pub Type: Cow<'s, str>,
+    pub DefaultHeight: bool,
+    pub Buttons: Vec<Button<'s>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

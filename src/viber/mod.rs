@@ -57,7 +57,11 @@ impl Viber {
         raw::send_text_message(text, to, &self.api_key, kb)
             .from_err()
             .and_then(|response| {
+                if !response.status().is_success() {
+                    debug!("Failed to send message");
+                }
                 let body = response.body().poll()?;
+                debug!("Send text to: {:?}", body);
                 Ok(())
             })
             .wait()

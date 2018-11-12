@@ -167,8 +167,9 @@ impl WeatherInquirer {
 
     pub fn try_broadcast(&mut self) {
         let runner = self.app_state.last_text_broadcast.write();
+        info!("try_broadcast");
         //16-20 UTC+2
-        runner.unwrap().daily(14, 18, &mut || {
+        runner.unwrap().daily(14, 24, &mut || {
             debug!("Trying to broadcast weather");
             self.broadcast_forecast().is_ok()
         });
@@ -230,7 +231,7 @@ impl WeatherInquirer {
                               day.temperature_high.ok_or(
                                   JsonError::MissingField { name: "temperature_high".to_owned() }
                               )?, precip, probability * 100.0);
-        info!("Sending viber message");
+        info!("Sending viber message: {}", &msg);
         // self.app_state.viber.lock().unwrap().broadcast_text(msg.as_str())?;
         self.app_state
             .viber

@@ -35,6 +35,8 @@ pub fn list(
 pub fn viber_webhook(
     req: &HttpRequest<AppStateType>,
 ) ->  Box<Future<Item = HttpResponse, Error = Error>> {
+    use std::borrow::Cow;
+
     let key = req.state().viber.lock().unwrap().api_key.clone();
 
     req.payload()
@@ -49,7 +51,16 @@ pub fn viber_webhook(
                     info!("message parsed {:?}", msg);
                     if msg.event.eq(&std::borrow::Cow::from("conversation_started")) {
                         let user = msg.user.as_ref().unwrap();
-                        raw::send_text_message("Hi", &user.id.to_string(), &key , None).wait();
+                        raw::send_text_message("Hi", &user.id.to_string(), &key , Some(messages::Keyboard {
+                            DefaultHeight: true,
+                            Type: Cow::from("keyboard"),
+                            Buttons: vec!(messages::Button {
+                                ActionBody: Cow::from("bitcoin"),
+                                ActionType: Cow::from("reply"),
+                                Text: Cow::from("Bitcoin Price"),
+                                TextSize: Cow::from("regular")
+                            })
+                        })).wait();
 
                     }
                     Ok(HttpResponse::Ok().content_type("text/plain").body(""))
