@@ -174,12 +174,12 @@ fn main() {
     let _state = state.clone();
 
 
-    /*let _server = Arbiter::start(move |ctx: &mut Context<_>| {
+    let _server = Arbiter::start(move |ctx: &mut Context<_>| {
 
         weather::WeatherInquirer::new(_state)
     });
 
-*/
+
     let addr = HttpServer::new(move || {
         App::with_state(state.clone())
             .middleware(middleware::Logger::default())
