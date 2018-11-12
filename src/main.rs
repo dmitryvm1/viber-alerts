@@ -88,19 +88,8 @@ impl Actor for WeatherInquirer {
                     Err(e) => {
                         error!("Error inquiring weather forecast. {}", e.as_fail());
                     }
-                    Ok(q) => {
-                        if q {
-                            let date = chrono::Utc::now();
-                            let name =
-                                format!("{}-{}-{}.jpg", date.year(), date.month(), date.day());
-                            _t.download_image(name.as_str()).map_err(|e| {
-                                warn!("Image not downloaded. {:?}", e);
-                            });
-                            let name =
-                                format!("{}-{}-{}t.jpg", date.year(), date.month(), date.day());
-                            _t.download_image(name.as_str()).map_err(|e| {
-                                warn!("Image not downloaded. {:?}", e);
-                            });
+                    Ok(success) => {
+                        if success {
                             _t.app_state
                                 .viber
                                 .lock()

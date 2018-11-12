@@ -111,6 +111,20 @@ impl WeatherInquirer {
         }))
     }
 
+    fn download_images(&self) {
+        let date = chrono::Utc::now();
+        let name =
+            format!("{}-{}-{}.jpg", date.year(), date.month(), date.day());
+        self.download_image(name.as_str()).map_err(|e| {
+            warn!("Image not downloaded. {:?}", e);
+        });
+        let name =
+            format!("{}-{}-{}t.jpg", date.year(), date.month(), date.day());
+        self.download_image(name.as_str()).map_err(|e| {
+            warn!("Image not downloaded. {:?}", e);
+        });
+    }
+
     fn tomorrow(&self) -> Result<&DataPoint, failure::Error> {
         if let Some(ref lr) = self.last_response {
             let daily = lr.daily.as_ref().ok_or(JsonError::MissingField {

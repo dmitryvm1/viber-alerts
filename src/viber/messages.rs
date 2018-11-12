@@ -42,6 +42,21 @@ impl<'a> EventTypes<'a> {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct Button {
+    ActionType: String,
+    ActionBody: String,
+    Text: String,
+    TextSize: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Keyboard {
+    Type: String,
+    DefaultHeight: bool,
+    Buttons: Vec<Button>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AccountInfo {
     pub status: i64,
     pub status_message: String,
@@ -68,6 +83,7 @@ pub struct TextMessage<'s> {
     pub tracking_data: Cow<'s, str>,
     #[serde(rename = "type")]
     pub _type: Cow<'s, str>,
+    pub keyboard: Option<Keyboard>,
     pub text: Cow<'s, str>,
 }
 
@@ -80,6 +96,7 @@ pub struct FileMessage<'s> {
     #[serde(rename = "type")]
     pub _type: Cow<'s, str>,
     pub media: Cow<'s, str>,
+    pub keyboard: Option<Keyboard>,
     pub size: usize,
     pub file_name: Cow<'s, str>,
 }
@@ -92,6 +109,7 @@ pub struct PictureMessage<'s> {
     pub tracking_data: Cow<'s, str>,
     #[serde(rename = "type")]
     pub _type: Cow<'s, str>,
+    pub keyboard: Option<Keyboard>,
     pub media: Cow<'s, str>,
     pub text: Cow<'s, str>,
     pub thumbnail: Cow<'s, str>,
@@ -105,6 +123,7 @@ pub struct VideoMessage<'s> {
     pub tracking_data: Cow<'s, str>,
     #[serde(rename = "type")]
     pub _type: Cow<'s, str>,
+    pub keyboard: Option<Keyboard>,
     pub media: Cow<'s, str>,
     pub size: usize,
     pub duration: u16,
