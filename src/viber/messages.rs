@@ -153,7 +153,7 @@ pub struct CallbackMessage<'s> {
     pub event: Cow<'s, str>,
     pub timestamp: u64,
     pub message_token: u64,
-    pub user_id: Cow<'s, str>,
+    pub user_id: Option<Cow<'s, str>>,
     #[serde(rename = "type")]
     pub _type: Option<Cow<'s, str>>,
     pub context: Option<Cow<'s, str>>,

@@ -36,19 +36,29 @@ pub fn viber_webhook(
     req: &HttpRequest<AppStateType>,
 ) ->  Box<Future<Item = HttpResponse, Error = Error>> {
     let key = req.state().viber.lock().unwrap().api_key.clone();
+
     req.payload()
         .concat2()
         .from_err()
         .and_then(move|body| {
-            let cb_msg: messages::CallbackMessage  = serde_json::from_slice(&body)?;
-            info!("{:?}", cb_msg);
+
+            let cb_msg: Result<messages::CallbackMessage, serde_json::Error>  = serde_json::from_slice(&body);
+            match cb_msg
             {
-                if cb_msg.event.eq(&std::borrow::Cow::from("conversation_started")) {
-                    let user = cb_msg.user.unwrap();
-                    raw::send_text_message("Hi", &user.id.to_string(), &key , None).wait();
-                };
+                Ok(ref msg) => {
+                    info!("message parsed {:?}", msg);
+                    if msg.event.eq(&std::borrow::Cow::from("conversation_started")) {
+                        let user = msg.user.as_ref().unwrap();
+                        raw::send_text_message("Hi", &user.id.to_string(), &key , None).wait();
+
+                    }
+                    Ok(HttpResponse::Ok().content_type("text/plain").body(""))
+                },
+                Err(e) => {
+                    debug!("Error parsing json, {:?}", e);
+                    Ok(HttpResponse::Ok().content_type("text/plain").body(""))
+                }
             }
-            Ok(HttpResponse::Ok().content_type("text/plain").body(""))
         }).responder()
 
 }

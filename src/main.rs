@@ -197,7 +197,7 @@ fn main() {
             .resource("/api/send_message/", |r| r.f(api::send_message))
             .resource("/api/acc_data/", |r| r.f(api::acc_data))
             .resource("/api/viber/webhook/", |r| {
-                r.method(http::Method::POST).f(api::viber_webhook)
+                r.f(api::viber_webhook)
             })
     })
         .bind(format!("0.0.0.0:{}", get_server_port()))
