@@ -46,15 +46,15 @@ impl Viber {
     pub fn broadcast_text(&self, text: &str) -> std::result::Result<(), failure::Error> {
         for m in &self.subscribers {
             debug!("Sending text to: {}", m.id);
-            if self.send_text_to(text, m.id.as_str()).is_err() {
+            if self.send_text_to(text, m.id.as_str(), None).is_err() {
                 warn!("Could not send text to user: {}", m.name);
             }
         }
         Ok(())
     }
 
-    pub fn send_text_to(&self, text: &str, to: &str) -> std::result::Result<(), failure::Error> {
-        raw::send_text_message(text, to, &self.api_key)
+    pub fn send_text_to<'s>(&self, text: &str, to: &str, kb: Option<messages::Keyboard<'s>>) -> std::result::Result<(), failure::Error> {
+        raw::send_text_message(text, to, &self.api_key, kb)
             .from_err()
             .and_then(|response| {
                 let body = response.body().poll()?;
@@ -125,7 +125,7 @@ impl Viber {
         self.send_picture_message_to(url, text, thumb, self.admin_id.as_str())
     }
 
-    pub fn send_text_to_admin(&self, text: &str) -> std::result::Result<(), failure::Error> {
-        self.send_text_to(text, self.admin_id.as_str())
+    pub fn send_text_to_admin<'s>(&self, text: &str, kb: Option<messages::Keyboard<'s>>) -> std::result::Result<(), failure::Error> {
+        self.send_text_to(text, self.admin_id.as_str(), kb)
     }
 }

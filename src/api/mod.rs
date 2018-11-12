@@ -52,7 +52,7 @@ pub fn send_message(
     super::viber::raw::send_text_message(
         "Hi",
         config.admin_id.as_ref().unwrap().as_str(),
-        key.unwrap(),
+        key.unwrap(), None
     )
         .from_err()
         .and_then(|response| {

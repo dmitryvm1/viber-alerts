@@ -102,17 +102,18 @@ pub fn send_picture_message(
         .send()
 }
 
-pub fn send_text_message(
+pub fn send_text_message<'s>(
     text: &str,
     receiver: &str,
     auth: &String,
+    kb: Option<messages::Keyboard<'s>>
 ) -> impl Future<Item = ClientResponse, Error = SendRequestError> {
     let text_message = messages::TextMessage {
         _type: Cow::from("text"),
         min_api_version: 1,
         receiver: Cow::from(receiver),
         text: Cow::from(text),
-        keyboard: None,
+        keyboard: kb,
         sender: messages::Sender {
             avatar: Cow::from(""),
             name: Cow::from("Bot"),
