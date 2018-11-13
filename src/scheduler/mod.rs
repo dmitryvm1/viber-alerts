@@ -19,7 +19,7 @@ impl TryTillSuccess {
         let now = Utc::now();
         let past_event = Utc.timestamp(self.last_success, 0);
         let lower_edge = Utc::now().with_hour(from as u32).unwrap();
-        if   lower_edge.timestamp() - past_event.timestamp() > ((24 - to as i64) * 60 * 60)  && now.hour() < to as u32 {
+        if   lower_edge.timestamp() - past_event.timestamp() > ((24 - to as i64 + from as i64) * 60 * 60)  && now.hour() < to as u32 {
             debug!("Executing at hour: {}", now.hour());
             if f() {
                 self.last_success = now.timestamp();
