@@ -29,6 +29,10 @@ pub fn send_video_message(
         sender: messages::Sender {
             avatar: Cow::from(""),
             name: Cow::from("Bot"),
+            id: None,
+            language: None,
+            country: None,
+            api_version: None
         },
         keyboard: None,
         duration: 0,
@@ -59,6 +63,10 @@ pub fn send_file_message(
         sender: messages::Sender {
             avatar: Cow::from(""),
             name: Cow::from("Bot"),
+            id: None,
+            language: None,
+            country: None,
+            api_version: None
         },
         keyboard: None,
         file_name: Cow::from(file_name),
@@ -88,6 +96,10 @@ pub fn send_picture_message(
         sender: messages::Sender {
             avatar: Cow::from(""),
             name: Cow::from("Bot"),
+            id: None,
+            language: None,
+            country: None,
+            api_version: None
         },
         keyboard: None,
         text: Cow::from(text),
@@ -117,6 +129,10 @@ pub fn send_text_message(
         sender: messages::Sender {
             avatar: Cow::from(""),
             name: Cow::from("Bot"),
+            id: None,
+            language: None,
+            country: None,
+            api_version: None
         },
         tracking_data: Cow::from(""),
     };

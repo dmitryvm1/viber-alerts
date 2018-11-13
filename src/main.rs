@@ -59,6 +59,7 @@ pub mod schema;
 pub mod viber;
 pub mod weather;
 pub mod api;
+pub mod bitcoin;
 
 // Interval between the task executions where all the notification/alert logic happens.
 #[cfg(debug_assertions)]

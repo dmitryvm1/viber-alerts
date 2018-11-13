@@ -167,9 +167,8 @@ impl WeatherInquirer {
 
     pub fn try_broadcast(&mut self) {
         let runner = self.app_state.last_text_broadcast.write();
-        info!("try_broadcast");
         //16-20 UTC+2
-        runner.unwrap().daily(14, 24, &mut || {
+        runner.unwrap().daily(14, 18, &mut || {
             debug!("Trying to broadcast weather");
             self.broadcast_forecast().is_ok()
         });

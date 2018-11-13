@@ -7,6 +7,7 @@ use futures::prelude::*;
 use chrono::TimeZone;
 use std::ops::Deref;
 use viber::*;
+use bitcoin;
 use std::borrow::Borrow;
 use actix_web::middleware::identity::RequestIdentity;
 
@@ -36,8 +37,19 @@ pub fn viber_webhook(
     req: &HttpRequest<AppStateType>,
 ) ->  Box<Future<Item = HttpResponse, Error = Error>> {
     use std::borrow::Cow;
+    use chrono::Utc;
 
     let key = req.state().viber.lock().unwrap().api_key.clone();
+    let kb = Some(messages::Keyboard {
+        DefaultHeight: true,
+        Type: Cow::from("keyboard"),
+        Buttons: vec!(messages::Button {
+            ActionBody: Cow::from("bitcoin"),
+            ActionType: Cow::from("reply"),
+            Text: Cow::from("Bitcoin Price"),
+            TextSize: Cow::from("regular")
+        })
+    });
 
     req.payload()
         .concat2()
@@ -51,17 +63,18 @@ pub fn viber_webhook(
                     info!("message parsed {:?}", msg);
                     if msg.event.eq(&std::borrow::Cow::from("conversation_started")) {
                         let user = msg.user.as_ref().unwrap();
-                        raw::send_text_message("Hi", &user.id.to_string(), &key , Some(messages::Keyboard {
-                            DefaultHeight: true,
-                            Type: Cow::from("keyboard"),
-                            Buttons: vec!(messages::Button {
-                                ActionBody: Cow::from("bitcoin"),
-                                ActionType: Cow::from("reply"),
-                                Text: Cow::from("Bitcoin Price"),
-                                TextSize: Cow::from("regular")
-                            })
-                        })).wait();
-
+                        raw::send_text_message("Hi", &user.id.to_string(), &key, kb).wait();
+                    } else {
+                        if msg.event.eq(&std::borrow::Cow::from("message")) {
+                            let user = msg.sender.as_ref().unwrap().id.as_ref().unwrap();
+                            let message = msg.message.as_ref().unwrap();
+                            info!("Message: {:?}", message);
+                            if message.text.eq(&std::borrow::Cow::from("bitcoin")) {
+                                let price = bitcoin::get_bitcoin_price().expect("Bitcoin price request failed.");
+                                let msg_text = format!("{} \n1 BTC = {} $", price.time.updateduk, price.bpi.USD.rate);
+                                raw::send_text_message(msg_text.as_str(), &user.to_string(), &key, kb).wait();
+                            }
+                        }
                     }
                     Ok(HttpResponse::Ok().content_type("text/plain").body(""))
                 },

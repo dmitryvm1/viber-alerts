@@ -15,6 +15,26 @@ pub struct Member {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct Sender<'a> {
+    pub id: Option<Cow<'a, str>>,
+    pub name: Cow<'a, str>,
+    pub avatar: Cow<'a, str>,
+    pub country: Option<Cow<'a, str>>,
+    pub language: Option<Cow<'a, str>>,
+    pub api_version: Option<i64>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Message<'a> {
+    #[serde(rename = "type")]
+    pub _type: Cow<'a, str>,
+    pub text: Cow<'a, str>,
+    pub media: Option<Cow<'a, str>>,
+    pub location: Option<Location>,
+    pub tracking_data: Option<Cow<'a, str>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum EventTypes<'a> {
     Subscribed,
     Unsubscribed,
@@ -133,12 +153,6 @@ pub struct VideoMessage<'s> {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Sender<'s> {
-    pub name: Cow<'s, str>,
-    pub avatar: Cow<'s, str>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct User<'s> {
     pub id: Cow<'s, str>,
     pub name: Cow<'s, str>,
@@ -153,6 +167,8 @@ pub struct CallbackMessage<'s> {
     pub event: Cow<'s, str>,
     pub timestamp: u64,
     pub message_token: u64,
+    pub message: Option<Message<'s>>,
+    pub sender: Option<Sender<'s>>,
     pub user_id: Option<Cow<'s, str>>,
     #[serde(rename = "type")]
     pub _type: Option<Cow<'s, str>>,
