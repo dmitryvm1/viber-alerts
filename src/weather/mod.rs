@@ -22,7 +22,7 @@ enum JsonError {
 
 #[derive(Debug, Fail)]
 #[fail(display = "Custom error: {}", msg)]
-struct CustomError {
+pub struct CustomError {
     msg: String,
 }
 

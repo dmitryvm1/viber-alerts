@@ -34,21 +34,14 @@ use std::sync::Arc;
 use weather::*;
 // use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use actix::{Actor, Arbiter, AsyncContext, Context, Running};
-use actix_web::error;
 use actix_web::server::HttpServer;
 use actix_web::*;
-use chrono::Datelike;
-use chrono::TimeZone;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use futures::{Future, Stream};
-use models::{NewPost, Post};
-use std::collections::HashMap;
 use std::env;
-use std::ops::Deref;
 use std::sync::Mutex;
 use std::sync::RwLock;
-use actix::Recipient;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -60,6 +53,7 @@ pub mod viber;
 pub mod weather;
 pub mod api;
 pub mod bitcoin;
+pub mod common;
 
 // Interval between the task executions where all the notification/alert logic happens.
 #[cfg(debug_assertions)]

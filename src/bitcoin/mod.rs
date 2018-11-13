@@ -1,24 +1,22 @@
 use actix_web::client;
-use actix_web::client::{ClientResponse, SendRequestError};
 use futures::Future;
 use serde_json;
 use actix_web::HttpMessage;
 use self::types::*;
+use actix_web::error::{PayloadError, Error};
 // use serde_json::*;
+use weather::CustomError;
+use failure;
 
 pub mod types;
 
-pub fn get_bitcoin_price() -> Option<BTCPrice> {
+pub fn get_bitcoin_price() -> Result<Option<BTCPrice>, failure::Error> {
     let response = client::get("https://api.coindesk.com/v1/bpi/currentprice.json")
         .finish().unwrap()
         .send().wait();
-    if response.is_err() {
-        error!("request failed for get_bitcoin_price");
-        return None
-    }
-    response.unwrap().body()
+    response?.body()
+        .from_err()
         .and_then(|data| {
-            let price:Option<BTCPrice> = serde_json::from_slice(&data).ok();
-            Ok(price)
-        }).wait().unwrap()
+            Ok(serde_json::from_slice(&data).ok())
+        }).wait()
 }

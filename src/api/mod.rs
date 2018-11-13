@@ -10,71 +10,58 @@ use viber::*;
 use bitcoin;
 use std::borrow::Borrow;
 use actix_web::middleware::identity::RequestIdentity;
-
-
+use common::*;
 
 pub fn list(
     (state, query): (State<AppStateType>, Query<HashMap<String, String>>),
 ) -> Result<HttpResponse, Error> {
-    // let s = if let Some(name) = query.get("name") {
-    // <- submitted form
     let mut ctx = tera::Context::new();
-    //  ctx.add("name", &name.to_owned());
     ctx.insert("text", &"Welcome!".to_owned());
     let ts = state.last_text_broadcast.read().unwrap().last_success;
-
     ctx.insert("last_broadcast", &chrono::Utc.timestamp(ts, 0).to_rfc2822());
     ctx.insert("members", &state.viber.lock().unwrap().subscribers);
-    let s = state.template.render("index.html", &ctx).map_err(|e| {
+    let html = state.template.render("index.html", &ctx).map_err(|e| {
         error!("Template error! {:?}", e);
         error::ErrorInternalServerError("Template error")
     })?;
-
-    Ok(HttpResponse::Ok().content_type("text/html").body(s))
+    Ok(HttpResponse::Ok().content_type("text/html").body(html))
 }
 
 pub fn viber_webhook(
     req: &HttpRequest<AppStateType>,
 ) ->  Box<Future<Item = HttpResponse, Error = Error>> {
     use std::borrow::Cow;
-    use chrono::Utc;
 
     let key = req.state().viber.lock().unwrap().api_key.clone();
-    let kb = Some(messages::Keyboard {
-        DefaultHeight: true,
-        Type: Cow::from("keyboard"),
-        Buttons: vec!(messages::Button {
-            ActionBody: Cow::from("bitcoin"),
-            ActionType: Cow::from("reply"),
-            Text: Cow::from("Bitcoin Price"),
-            TextSize: Cow::from("regular")
-        })
-    });
+    let kb = Some(get_default_keyboard());
 
     req.payload()
         .concat2()
         .from_err()
         .and_then(move|body| {
-
             let cb_msg: Result<messages::CallbackMessage, serde_json::Error>  = serde_json::from_slice(&body);
             match cb_msg
             {
                 Ok(ref msg) => {
                     info!("message parsed {:?}", msg);
-                    if msg.event.eq(&std::borrow::Cow::from("conversation_started")) {
-                        let user = msg.user.as_ref().unwrap();
-                        raw::send_text_message("Hi", &user.id.to_string(), &key, kb).wait();
-                    } else {
-                        if msg.event.eq(&std::borrow::Cow::from("message")) {
+                    match msg.event.as_ref() {
+                        "conversation_started" => {
+                            let user = msg.user.as_ref().unwrap();
+                            raw::send_text_message("Welcome to Kiev Alerts", &user.id.to_string(), &key, kb).wait();
+                        },
+                        "message" => {
                             let user = msg.sender.as_ref().unwrap().id.as_ref().unwrap();
                             let message = msg.message.as_ref().unwrap();
-                            info!("Message: {:?}", message);
-                            if message.text.eq(&std::borrow::Cow::from("bitcoin")) {
-                                let price = bitcoin::get_bitcoin_price().expect("Bitcoin price request failed.");
-                                let msg_text = format!("{} \n1 BTC = {} $", price.time.updateduk, price.bpi.USD.rate);
-                                raw::send_text_message(msg_text.as_str(), &user.to_string(), &key, kb).wait();
+                            if message.text.eq(&Cow::from("bitcoin")) {
+                                let price = bitcoin::get_bitcoin_price()?;
+                                if price.is_some() {
+                                    let price = price.unwrap();
+                                    let msg_text = format!("{} \n1 BTC = {} $", price.time.updateduk, price.bpi.USD.rate);
+                                    raw::send_text_message(msg_text.as_str(), &user.to_string(), &key, kb).wait();
+                                }
                             }
-                        }
+                        },
+                        _ => {}
                     }
                     Ok(HttpResponse::Ok().content_type("text/plain").body(""))
                 },
