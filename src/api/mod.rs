@@ -109,17 +109,37 @@ pub fn acc_data(req: &HttpRequest<AppStateType>) -> Box<Future<Item = HttpRespon
         .responder()
 }
 
-pub fn index(req: &HttpRequest<AppStateType>) -> String {
-    format!("Hello {}", req.identity().unwrap_or("Anonymous".to_owned()))
+pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
+    let state = req.state();
+    if req.identity().is_none() {
+        let mut ctx = tera::Context::new();
+        ctx.insert("app_name", "Viber Alerts");
+        let html = state.template.render("login.html", &ctx).map_err(|e| {
+            error!("Template error! {:?}", e);
+            error::ErrorInternalServerError("Template error")
+        })?;
+        Ok(HttpResponse::Ok().content_type("text/html").body(html))
+    } else {
+        let mut ctx = tera::Context::new();
+        ctx.insert("text", &"Welcome!".to_owned());
+        let ts = state.last_text_broadcast.read().unwrap().last_success;
+        ctx.insert("last_broadcast", &chrono::Utc.timestamp(ts, 0).to_rfc2822());
+        ctx.insert("members", &state.viber.lock().unwrap().subscribers);
+        let html = state.template.render("index.html", &ctx).map_err(|e| {
+            error!("Template error! {:?}", e);
+            error::ErrorInternalServerError("Template error")
+        })?;
+        Ok(HttpResponse::Ok().content_type("text/html").body(html))
+    }
 }
 
-pub fn login(req: &HttpRequest<AppStateType>) -> HttpResponse {
-    {
-        let q = req.query();
-        let user = q.get("user").unwrap();
-        let password = q.get("password").unwrap();
-        println!("u: {}, p: {}", user, password);
-    }
+#[derive(Deserialize)]
+pub struct LoginParams {
+    email_or_name: String,
+    password: String
+}
+
+pub fn login((req, params):(HttpRequest<AppStateType>, Form<LoginParams>)) -> HttpResponse {
     {
         let pool = &req.state().pool;
         let new_post = NewPost {

@@ -184,7 +184,7 @@ fn main() {
                     .secure(false),
             ))
             .handler("/api/static", fs::StaticFiles::new("static/").unwrap())
-            .resource("/login", |r| r.f(api::login))
+            .resource("/login", |r| r.method(http::Method::POST).with(api::login))
             .resource("/logout", |r| r.f(api::logout))
             .resource("/", |r| r.f(api::index))
             .resource("/users", |r| r.f(api::users))

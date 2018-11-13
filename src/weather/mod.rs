@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::Read;
 use std::io::Write;
 use AppStateType;
+use chrono::FixedOffset;
 
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
@@ -47,13 +48,14 @@ impl WeatherInquirer {
         match self.last_response {
             None => Ok(true),
             Some(ref resp) => {
-                let today = Utc::now();
+                let today = Utc::now().with_timezone(&FixedOffset::east(2*3600));
                 // check if the second daily forecast is for today:
                 let dt = {
                     let daily = resp.daily.as_ref().ok_or(JsonError::MissingField {
                         name: "daily".to_owned(),
                     })?;
                     let first = daily.data.get(1).ok_or(JsonError::ArrayIndex)?;
+                    // debug!("daily data: {:?}", daily);
                     Utc.timestamp(first.time as i64, 0)
                 };
                 Ok(dt.day() != today.day())

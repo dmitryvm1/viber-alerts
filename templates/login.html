@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <title>
+{{app_name}}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/api/static/css/main.css">
+        <link rel="stylesheet" href="/api/static/css/feather.css">
+</head>
+    <body>
+        <header>
+            <nav id="menu">
+                <a href="" aria-label="Menu" title="Menu"><i class="icon icon-menu"></i></a>
+            </nav>
+            <div id="content">
+                <nav>
+                    <a href="" class="title">
+                        <p>{{app_name}}</p>
+                    </a>
+                    <hr>
+                </nav>
+                <nav>
+                        <a href="">
+                            <i class="icon icon-log-in"></i>
+                            <span class="mobile-label">Log In</span>
+                        </a>
+                        <a href="">
+                            <i class="icon icon-user-plus"></i>
+                            <span class="mobile-label">Register</span>
+                        </a>
+                </nav>
+            </div>
+        </header>
+        <main>
+<h1>Login</h1>
+<form method="post" action="/login">
+    <label for="email_or_name">
+        Username or email
+        <small> </small>
+    </label>
+    <input type="text" id="email_or_name" name="email_or_name" value="" minlenght="1">
+    <label for="password">
+        Password
+        <small> </small>
+    </label>
+    <input type="password" id="password" name="password" value="" minlenght="1">
+    <input type="submit" value="Login">
+</form>
+        </main>
+        <script src="/api/static/js/menu.js"></script>
+</body></html>
