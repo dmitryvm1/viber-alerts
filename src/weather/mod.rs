@@ -168,11 +168,13 @@ impl WeatherInquirer {
     }
 
     pub fn try_broadcast(&mut self) {
+        let admin = self.app_state.viber.lock().unwrap().admin_id.clone();
         let runner = self.app_state.last_text_broadcast.write();
+
         //16-20 UTC+2
         runner.unwrap().daily(14, 18, &mut || {
             debug!("Trying to broadcast weather");
-            self.broadcast_forecast().is_ok()
+            self.send_forecast_for_tomorrow(&admin).is_ok()
         });
     }
 
@@ -210,8 +212,11 @@ impl WeatherInquirer {
             .into())
         }
     }
-    pub fn broadcast_forecast(&self) -> Result<(), failure::Error> {
-        let day = self.tomorrow()?;
+
+    pub fn format_forecast(data_point: &DataPoint) -> String {
+        let dt = Utc.timestamp(data_point.time as i64, 0);
+        format!("{:?}\n{:?}", dt.to_rfc2822(), data_point)
+        /*
         let dt = Utc.timestamp(day.time as i64, 0);
         let (precip, probability) = match day.precip_type.as_ref() {
             Some(p) => {
@@ -224,21 +229,28 @@ impl WeatherInquirer {
             }
             None => ("-", 0.0),
         };
-        let msg = format!("Прогноз на завтра {}.{}: \nТемпература: {:?} - {:?} \nОсадки: {:?} с вероятностью {}%", dt.day(),
+        format!("Прогноз на завтра {}.{}: \nТемпература: {:?} - {:?} \nОсадки: {:?} с вероятностью {}%", dt.day(),
                               dt.month(),
                               day.temperature_low.ok_or(
                                   JsonError::MissingField { name: "temperature_low".to_owned() }
                               )?,
                               day.temperature_high.ok_or(
                                   JsonError::MissingField { name: "temperature_high".to_owned() }
-                              )?, precip, probability * 100.0);
+                              )?, precip, probability * 100.0);*/
+    }
+
+    pub fn send_forecast_for_tomorrow(&self, to: &str) -> Result<(), failure::Error> {
+        use common::get_default_keyboard;
+        let day = self.tomorrow()?;
+        let msg = WeatherInquirer::format_forecast(day);
+
         info!("Sending viber message: {}", &msg);
         // self.app_state.viber.lock().unwrap().broadcast_text(msg.as_str())?;
         self.app_state
             .viber
             .lock()
             .unwrap()
-            .send_text_to_admin(msg.as_str(), None)?;
+            .send_text_to(msg.as_str(), to, Some(get_default_keyboard()))?;
         Ok(())
     }
 }

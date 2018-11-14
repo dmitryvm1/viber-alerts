@@ -163,17 +163,13 @@ fn main() {
     let pool = r2d2::Pool::builder()
         .build(manager)
         .expect("Failed to create pool.");
-
     let state = AppState::new(config, pool);
     let state = Arc::new(state);
     let _state = state.clone();
 
-
     let _server = Arbiter::start(move |ctx: &mut Context<_>| {
-
         weather::WeatherInquirer::new(_state)
     });
-
 
     let addr = HttpServer::new(move || {
         App::with_state(state.clone())
