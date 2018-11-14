@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use viber::messages::{Button, Keyboard};
 
+pub mod messages;
+
 pub fn get_default_keyboard<'a>() -> Keyboard<'a> {
     Keyboard {
         DefaultHeight: true,
@@ -13,9 +15,9 @@ pub fn get_default_keyboard<'a>() -> Keyboard<'a> {
                 TextSize: Cow::from("regular"),
             },
             Button {
-                ActionBody: Cow::from("bitcoin"),
+                ActionBody: Cow::from("forecast_kiev_tomorrow"),
                 ActionType: Cow::from("reply"),
-                Text: Cow::from("Bitcoin Price"),
+                Text: Cow::from("Weather For Tomorrow"),
                 TextSize: Cow::from("regular"),
             },
         ],

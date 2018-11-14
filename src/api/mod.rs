@@ -10,17 +10,22 @@ use models::Post;
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::ops::Deref;
-use viber::*;
+use viber::messages::CallbackMessage;
+use viber::raw;
+use std::borrow::BorrowMut;
+use common::messages::TomorrowForecast;
+use weather::WeatherInquirer;
+use actix::Recipient;
 
 pub fn list(
     (state, query): (State<AppStateType>, Query<HashMap<String, String>>),
 ) -> Result<HttpResponse, Error> {
     let mut ctx = tera::Context::new();
     ctx.insert("text", &"Welcome!".to_owned());
-    let ts = state.last_text_broadcast.read().unwrap().last_success;
+    let ts = state.lock().unwrap().last_text_broadcast.last_success;
     ctx.insert("last_broadcast", &chrono::Utc.timestamp(ts, 0).to_rfc2822());
-    ctx.insert("members", &state.viber.lock().unwrap().subscribers);
-    let html = state.template.render("index.html", &ctx).map_err(|e| {
+    ctx.insert("members", &state.lock().unwrap().viber.subscribers);
+    let html = state.lock().unwrap().template.render("index.html", &ctx).map_err(|e| {
         error!("Template error! {:?}", e);
         error::ErrorInternalServerError("Template error")
     })?;
@@ -32,20 +37,22 @@ pub fn viber_webhook(
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
     use std::borrow::Cow;
 
-    let key = req.state().viber.lock().unwrap().api_key.clone();
+    let addr:Option<Recipient<TomorrowForecast>> = req.state().lock().unwrap().addr.clone();
+    let key = req.state().lock().unwrap().viber.api_key.clone();
     let kb = Some(get_default_keyboard());
 
     req.payload()
         .concat2()
         .from_err()
         .and_then(move |body| {
-            let cb_msg: Result<messages::CallbackMessage, serde_json::Error> =
+            let cb_msg: Result<CallbackMessage, serde_json::Error> =
                 serde_json::from_slice(&body);
+            info!("viber hook {:?}", cb_msg);
             match cb_msg {
                 Ok(ref msg) => {
-                    info!("message parsed {:?}", msg);
                     match msg.event.as_ref() {
                         "conversation_started" => {
+                            info!("message parsed {:?}", msg);
                             let user = msg.user.as_ref().unwrap();
                             raw::send_text_message(
                                 "Welcome to Kiev Alerts",
@@ -54,28 +61,39 @@ pub fn viber_webhook(
                                 kb,
                             )
                             .wait();
-                        }
+                        },
                         "message" => {
                             let user = msg.sender.as_ref().unwrap().id.as_ref().unwrap();
                             let message = msg.message.as_ref().unwrap();
-                            if message.text.eq(&Cow::from("bitcoin")) {
-                                let price = bitcoin::get_bitcoin_price()?;
-                                if price.is_some() {
-                                    let price = price.unwrap();
-                                    let msg_text = format!(
-                                        "{} \n1 BTC = {} $",
-                                        price.time.updateduk, price.bpi.USD.rate
-                                    );
-                                    raw::send_text_message(
-                                        msg_text.as_str(),
-                                        &user.to_string(),
-                                        &key,
-                                        kb,
-                                    )
-                                    .wait();
+                            match message.text.as_ref() {
+                                "bitcoin" => {
+                                    let price = bitcoin::get_bitcoin_price();
+                                    info!("btc {:?}", price);
+                                    if price.is_some() {
+                                        let price = price.unwrap();
+                                        let msg_text = format!(
+                                            "{} \n1 BTC = {} $",
+                                            price.time.updateduk, price.bpi.USD.rate
+                                        );
+                                        raw::send_text_message(
+                                            msg_text.as_str(),
+                                            &user.to_string(),
+                                            &key,
+                                            kb,
+                                        )
+                                        .wait();
+                                    } else {
+                                        error!("Could not get bitcoin price.");
+                                    }
+                                },
+                                "forecast_kiev_tomorrow" => {
+                                    info!("message parsed {:?}", msg);
+                                    addr.unwrap().do_send(TomorrowForecast { user_id: user.to_string() });
                                 }
+
+                                _ => {}
                             }
-                        }
+                        },
                         _ => {}
                     }
                     Ok(HttpResponse::Ok().content_type("text/plain").body(""))
@@ -93,7 +111,7 @@ pub fn send_message(
     req: &HttpRequest<AppStateType>,
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
     let state = req.state();
-    let config = &state.config;
+    let config = &state.lock().unwrap().config;
     let viber_api_key = &config.viber_api_key;
     let key = &viber_api_key.as_ref();
     super::viber::raw::send_text_message(
@@ -114,7 +132,7 @@ pub fn acc_data(
     req: &HttpRequest<AppStateType>,
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
     let state = req.state();
-    let config: &super::config::Config = &state.config;
+    let config: &super::config::Config = &state.lock().unwrap().config;
     super::viber::raw::get_account_data(config.viber_api_key.as_ref().unwrap())
         .from_err()
         .and_then(|response| {
@@ -131,7 +149,7 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
     if req.identity().is_none() {
         let mut ctx = tera::Context::new();
         ctx.insert("app_name", "Viber Alerts");
-        let html = state.template.render("login.html", &ctx).map_err(|e| {
+        let html = state.lock().unwrap().template.render("login.html", &ctx).map_err(|e| {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")
         })?;
@@ -139,10 +157,10 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
     } else {
         let mut ctx = tera::Context::new();
         ctx.insert("text", &"Welcome!".to_owned());
-        let ts = state.last_text_broadcast.read().unwrap().last_success;
+        let ts = state.lock().unwrap().last_text_broadcast.last_success;
         ctx.insert("last_broadcast", &chrono::Utc.timestamp(ts, 0).to_rfc2822());
-        ctx.insert("members", &state.viber.lock().unwrap().subscribers);
-        let html = state.template.render("index.html", &ctx).map_err(|e| {
+        ctx.insert("members", &state.lock().unwrap().viber.subscribers);
+        let html = state.lock().unwrap().template.render("index.html", &ctx).map_err(|e| {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")
         })?;
@@ -158,7 +176,7 @@ pub struct LoginParams {
 
 pub fn login((req, params): (HttpRequest<AppStateType>, Form<LoginParams>)) -> HttpResponse {
     {
-        let pool = &req.state().pool;
+        let pool = &req.state().lock().unwrap().pool;
         let new_post = NewPost {
             body: "test",
             title: "title",
@@ -174,7 +192,7 @@ pub fn login((req, params): (HttpRequest<AppStateType>, Form<LoginParams>)) -> H
 }
 
 pub fn users(req: &HttpRequest<AppStateType>) -> HttpResponse {
-    let pool = &req.state().pool;
+    let pool = &req.state().lock().unwrap().pool;
     let users = Post::all(pool.get().unwrap().deref()).unwrap();
     HttpResponse::Ok().body(format!("{:?}", users))
 }

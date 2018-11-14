@@ -40,6 +40,10 @@ use futures::{Future, Stream};
 use std::env;
 use std::sync::Mutex;
 use std::sync::RwLock;
+use actix::Handler;
+use common::messages::*;
+use actix::Recipient;
+use actix::Message;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -59,17 +63,15 @@ static QUERY_INTERVAL: u64 = 6;
 #[cfg(not(debug_assertions))]
 static QUERY_INTERVAL: u64 = 60;
 
-pub type AppStateType = Arc<AppState>;
+pub type AppStateType = Arc<Mutex<AppState>>;
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 
 impl Actor for WeatherInquirer {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
-        if self
-            .app_state
+        let mut state = self.app_state.lock().unwrap();
+        if  state
             .viber
-            .lock()
-            .unwrap()
             .update_subscribers()
             .is_err()
         {
@@ -84,10 +86,9 @@ impl Actor for WeatherInquirer {
                     }
                     Ok(success) => {
                         if success {
-                            _t.app_state
+                            let mut state = _t.app_state.lock().unwrap();
+                            state
                                 .viber
-                                .lock()
-                                .unwrap()
                                 .update_subscribers()
                                 .map_err(|e| {
                                     warn!("Failed to read subscribers. {:?}", e);
@@ -105,10 +106,22 @@ impl Actor for WeatherInquirer {
     }
 }
 
+impl Handler<TomorrowForecast> for WeatherInquirer {
+    type Result = ();
+
+    fn handle(&mut self, msg: TomorrowForecast, ctx: & mut Context<Self>) -> <Self as Handler<TomorrowForecast>>::Result {
+        debug!("handling tomorrow forecast");
+        self.send_forecast_for_tomorrow(&msg.user_id).map_err(|_| {
+            error!("Can't send forecast for tomorrow to {}", &msg.user_id);
+        });
+    }
+}
+
 pub struct AppState {
+    pub addr: Option<Recipient<TomorrowForecast>>,
     pub config: config::Config,
-    pub viber: Mutex<viber::Viber>,
-    pub last_text_broadcast: RwLock<scheduler::TryTillSuccess>,
+    pub viber: viber::Viber,
+    pub last_text_broadcast: scheduler::TryTillSuccess,
     pub pool: PgPool,
     template: tera::Tera, // <- store tera template in application state
 }
@@ -121,10 +134,11 @@ impl AppState {
         let tera = tera::Tera::new("templates/**/*").expect("Failed to load templates");
         AppState {
             config: config,
-            viber: Mutex::new(viber::Viber::new(viber_api_key.unwrap(), admin_id.unwrap())),
-            last_text_broadcast: RwLock::new(scheduler::TryTillSuccess::new()),
+            viber: viber::Viber::new(viber_api_key.unwrap(), admin_id.unwrap()),
+            last_text_broadcast: scheduler::TryTillSuccess::new(),
             template: tera,
             pool,
+            addr: None
         }
     }
 }
@@ -137,6 +151,8 @@ fn get_server_port() -> u16 {
 }
 
 fn main() {
+    use std::borrow::BorrowMut;
+
     env::set_var("RUST_LOG", "viber_alerts=debug");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
@@ -161,11 +177,14 @@ fn main() {
     let pool = r2d2::Pool::builder()
         .build(manager)
         .expect("Failed to create pool.");
-    let state = AppState::new(config, pool);
-    let state = Arc::new(state);
+    let mut state = Arc::new(Mutex::new(AppState::new(config, pool)));
     let _state = state.clone();
 
     let _server = Arbiter::start(move |ctx: &mut Context<_>| weather::WeatherInquirer::new(_state));
+    let forecast_addr = _server.recipient();
+    {
+        state.lock().unwrap().addr = Some(forecast_addr);
+    }
 
     let addr = HttpServer::new(move || {
         App::with_state(state.clone())

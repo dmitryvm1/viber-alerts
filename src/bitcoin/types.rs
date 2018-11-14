@@ -1,11 +1,11 @@
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Bpi {
     pub USD: Usd,
     pub GBP: Usd,
     pub EUR: Usd,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct BTCPrice {
     pub time: Time,
     pub disclaimer: String,
@@ -13,14 +13,14 @@ pub struct BTCPrice {
     pub bpi: Bpi,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Time {
     pub updated: String,
     pub updatedISO: String,
     pub updateduk: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Usd {
     pub code: String,
     pub symbol: String,

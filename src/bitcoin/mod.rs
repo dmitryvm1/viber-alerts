@@ -10,15 +10,19 @@ use weather::CustomError;
 
 pub mod types;
 
-pub fn get_bitcoin_price() -> Result<Option<BTCPrice>, failure::Error> {
-    let response = client::get("https://api.coindesk.com/v1/bpi/currentprice.json")
+pub fn get_bitcoin_price() -> Option<BTCPrice> {
+    let response = client::get("http://api.coindesk.com/v1/bpi/currentprice.json")
         .finish()
         .unwrap()
         .send()
         .wait();
-    response?
-        .body()
-        .from_err()
-        .and_then(|data| Ok(serde_json::from_slice(&data).ok()))
-        .wait()
+    match response {
+        Ok(r) => {
+            r
+                .body()
+                .and_then(|data| Ok(serde_json::from_slice(&data).ok()))
+                .wait().ok().unwrap_or(None)
+        },
+        _ => None
+    }
 }

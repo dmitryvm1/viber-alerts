@@ -25,7 +25,7 @@ pub struct Sender<'a> {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Message<'a> {
+pub struct ViberMessage<'a> {
     #[serde(rename = "type")]
     pub _type: Cow<'a, str>,
     pub text: Cow<'a, str>,
@@ -166,7 +166,7 @@ pub struct CallbackMessage<'s> {
     pub event: Cow<'s, str>,
     pub timestamp: u64,
     pub message_token: u64,
-    pub message: Option<Message<'s>>,
+    pub message: Option<ViberMessage<'s>>,
     pub sender: Option<Sender<'s>>,
     pub user_id: Option<Cow<'s, str>>,
     #[serde(rename = "type")]
