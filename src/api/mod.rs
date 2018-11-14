@@ -1,16 +1,16 @@
 use super::AppStateType;
+use actix_web::middleware::identity::RequestIdentity;
 use actix_web::*;
-use std::collections::HashMap;
-use models::Post;
-use models::NewPost;
-use futures::prelude::*;
+use bitcoin;
 use chrono::TimeZone;
+use common::*;
+use futures::prelude::*;
+use models::NewPost;
+use models::Post;
+use std::borrow::Borrow;
+use std::collections::HashMap;
 use std::ops::Deref;
 use viber::*;
-use bitcoin;
-use std::borrow::Borrow;
-use actix_web::middleware::identity::RequestIdentity;
-use common::*;
 
 pub fn list(
     (state, query): (State<AppStateType>, Query<HashMap<String, String>>),
@@ -29,7 +29,7 @@ pub fn list(
 
 pub fn viber_webhook(
     req: &HttpRequest<AppStateType>,
-) ->  Box<Future<Item = HttpResponse, Error = Error>> {
+) -> Box<Future<Item = HttpResponse, Error = Error>> {
     use std::borrow::Cow;
 
     let key = req.state().viber.lock().unwrap().api_key.clone();
@@ -38,17 +38,23 @@ pub fn viber_webhook(
     req.payload()
         .concat2()
         .from_err()
-        .and_then(move|body| {
-            let cb_msg: Result<messages::CallbackMessage, serde_json::Error>  = serde_json::from_slice(&body);
-            match cb_msg
-            {
+        .and_then(move |body| {
+            let cb_msg: Result<messages::CallbackMessage, serde_json::Error> =
+                serde_json::from_slice(&body);
+            match cb_msg {
                 Ok(ref msg) => {
                     info!("message parsed {:?}", msg);
                     match msg.event.as_ref() {
                         "conversation_started" => {
                             let user = msg.user.as_ref().unwrap();
-                            raw::send_text_message("Welcome to Kiev Alerts", &user.id.to_string(), &key, kb).wait();
-                        },
+                            raw::send_text_message(
+                                "Welcome to Kiev Alerts",
+                                &user.id.to_string(),
+                                &key,
+                                kb,
+                            )
+                            .wait();
+                        }
                         "message" => {
                             let user = msg.sender.as_ref().unwrap().id.as_ref().unwrap();
                             let message = msg.message.as_ref().unwrap();
@@ -56,24 +62,32 @@ pub fn viber_webhook(
                                 let price = bitcoin::get_bitcoin_price()?;
                                 if price.is_some() {
                                     let price = price.unwrap();
-                                    let msg_text = format!("{} \n1 BTC = {} $", price.time.updateduk, price.bpi.USD.rate);
-                                    raw::send_text_message(msg_text.as_str(), &user.to_string(), &key, kb).wait();
+                                    let msg_text = format!(
+                                        "{} \n1 BTC = {} $",
+                                        price.time.updateduk, price.bpi.USD.rate
+                                    );
+                                    raw::send_text_message(
+                                        msg_text.as_str(),
+                                        &user.to_string(),
+                                        &key,
+                                        kb,
+                                    )
+                                    .wait();
                                 }
                             }
-                        },
+                        }
                         _ => {}
                     }
                     Ok(HttpResponse::Ok().content_type("text/plain").body(""))
-                },
+                }
                 Err(e) => {
                     debug!("Error parsing json, {:?}", e);
                     Ok(HttpResponse::Ok().content_type("text/plain").body(""))
                 }
             }
-        }).responder()
-
+        })
+        .responder()
 }
-
 
 pub fn send_message(
     req: &HttpRequest<AppStateType>,
@@ -85,17 +99,20 @@ pub fn send_message(
     super::viber::raw::send_text_message(
         "Hi",
         config.admin_id.as_ref().unwrap().as_str(),
-        key.unwrap(), None
+        key.unwrap(),
+        None,
     )
-        .from_err()
-        .and_then(|response| {
-            response.body().poll()?;
-            Ok(HttpResponse::Ok().content_type("text/plain").body("sent"))
-        })
-        .responder()
+    .from_err()
+    .and_then(|response| {
+        response.body().poll()?;
+        Ok(HttpResponse::Ok().content_type("text/plain").body("sent"))
+    })
+    .responder()
 }
 
-pub fn acc_data(req: &HttpRequest<AppStateType>) -> Box<Future<Item = HttpResponse, Error = Error>> {
+pub fn acc_data(
+    req: &HttpRequest<AppStateType>,
+) -> Box<Future<Item = HttpResponse, Error = Error>> {
     let state = req.state();
     let config: &super::config::Config = &state.config;
     super::viber::raw::get_account_data(config.viber_api_key.as_ref().unwrap())
@@ -136,10 +153,10 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
 #[derive(Deserialize)]
 pub struct LoginParams {
     email_or_name: String,
-    password: String
+    password: String,
 }
 
-pub fn login((req, params):(HttpRequest<AppStateType>, Form<LoginParams>)) -> HttpResponse {
+pub fn login((req, params): (HttpRequest<AppStateType>, Form<LoginParams>)) -> HttpResponse {
     {
         let pool = &req.state().pool;
         let new_post = NewPost {

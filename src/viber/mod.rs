@@ -53,7 +53,12 @@ impl Viber {
         Ok(())
     }
 
-    pub fn send_text_to(&self, text: &str, to: &str, kb: Option<messages::Keyboard>) -> std::result::Result<(), failure::Error> {
+    pub fn send_text_to(
+        &self,
+        text: &str,
+        to: &str,
+        kb: Option<messages::Keyboard>,
+    ) -> std::result::Result<(), failure::Error> {
         raw::send_text_message(text, to, &self.api_key, kb)
             .from_err()
             .and_then(|response| {
@@ -129,7 +134,11 @@ impl Viber {
         self.send_picture_message_to(url, text, thumb, self.admin_id.as_str())
     }
 
-    pub fn send_text_to_admin<'s>(&self, text: &str, kb: Option<messages::Keyboard<'s>>) -> std::result::Result<(), failure::Error> {
+    pub fn send_text_to_admin<'s>(
+        &self,
+        text: &str,
+        kb: Option<messages::Keyboard<'s>>,
+    ) -> std::result::Result<(), failure::Error> {
         self.send_text_to(text, self.admin_id.as_str(), kb)
     }
 }

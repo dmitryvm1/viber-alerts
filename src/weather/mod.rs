@@ -1,5 +1,6 @@
 use actix_web::HttpMessage;
 use actix_web::*;
+use chrono::FixedOffset;
 use chrono::*;
 use forecast::ApiResponse;
 use forecast::*;
@@ -8,7 +9,6 @@ use std::fs::File;
 use std::io::Read;
 use std::io::Write;
 use AppStateType;
-use chrono::FixedOffset;
 
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
@@ -48,7 +48,7 @@ impl WeatherInquirer {
         match self.last_response {
             None => Ok(true),
             Some(ref resp) => {
-                let today = Utc::now().with_timezone(&FixedOffset::east(2*3600));
+                let today = Utc::now().with_timezone(&FixedOffset::east(2 * 3600));
                 // check if the second daily forecast is for today:
                 let dt = {
                     let daily = resp.daily.as_ref().ok_or(JsonError::MissingField {
@@ -115,13 +115,11 @@ impl WeatherInquirer {
 
     fn download_images(&self) {
         let date = chrono::Utc::now();
-        let name =
-            format!("{}-{}-{}.jpg", date.year(), date.month(), date.day());
+        let name = format!("{}-{}-{}.jpg", date.year(), date.month(), date.day());
         self.download_image(name.as_str()).map_err(|e| {
             warn!("Image not downloaded. {:?}", e);
         });
-        let name =
-            format!("{}-{}-{}t.jpg", date.year(), date.month(), date.day());
+        let name = format!("{}-{}-{}t.jpg", date.year(), date.month(), date.day());
         self.download_image(name.as_str()).map_err(|e| {
             warn!("Image not downloaded. {:?}", e);
         });
@@ -246,11 +244,11 @@ impl WeatherInquirer {
 
         info!("Sending viber message: {}", &msg);
         // self.app_state.viber.lock().unwrap().broadcast_text(msg.as_str())?;
-        self.app_state
-            .viber
-            .lock()
-            .unwrap()
-            .send_text_to(msg.as_str(), to, Some(get_default_keyboard()))?;
+        self.app_state.viber.lock().unwrap().send_text_to(
+            msg.as_str(),
+            to,
+            Some(get_default_keyboard()),
+        )?;
         Ok(())
     }
 }

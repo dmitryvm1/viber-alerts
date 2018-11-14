@@ -47,7 +47,6 @@ pub enum EventTypes<'a> {
     Unknown(&'a str),
 }
 
-
 impl<'a> EventTypes<'a> {
     pub fn value(&self) -> &'a str {
         match self {
@@ -174,5 +173,5 @@ pub struct CallbackMessage<'s> {
     pub _type: Option<Cow<'s, str>>,
     pub context: Option<Cow<'s, str>>,
     pub user: Option<User<'s>>,
-    pub subscribed: Option<bool>
+    pub subscribed: Option<bool>,
 }

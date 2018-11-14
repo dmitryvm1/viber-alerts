@@ -27,9 +27,7 @@ extern crate failure;
 extern crate tera;
 
 use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
-use actix_web::{
-    http, middleware, App
-};
+use actix_web::{http, middleware, App};
 use std::sync::Arc;
 use weather::*;
 // use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
@@ -45,15 +43,15 @@ use std::sync::RwLock;
 
 static APP_NAME: &str = "viber_alerts";
 
+pub mod api;
+pub mod bitcoin;
+pub mod common;
 pub mod config;
 pub mod models;
 pub mod scheduler;
 pub mod schema;
 pub mod viber;
 pub mod weather;
-pub mod api;
-pub mod bitcoin;
-pub mod common;
 
 // Interval between the task executions where all the notification/alert logic happens.
 #[cfg(debug_assertions)]
@@ -126,7 +124,7 @@ impl AppState {
             viber: Mutex::new(viber::Viber::new(viber_api_key.unwrap(), admin_id.unwrap())),
             last_text_broadcast: RwLock::new(scheduler::TryTillSuccess::new()),
             template: tera,
-            pool
+            pool,
         }
     }
 }
@@ -167,9 +165,7 @@ fn main() {
     let state = Arc::new(state);
     let _state = state.clone();
 
-    let _server = Arbiter::start(move |ctx: &mut Context<_>| {
-        weather::WeatherInquirer::new(_state)
-    });
+    let _server = Arbiter::start(move |ctx: &mut Context<_>| weather::WeatherInquirer::new(_state));
 
     let addr = HttpServer::new(move || {
         App::with_state(state.clone())
@@ -187,15 +183,13 @@ fn main() {
             .resource("/list", |r| r.method(http::Method::GET).with(api::list))
             .resource("/api/send_message/", |r| r.f(api::send_message))
             .resource("/api/acc_data/", |r| r.f(api::acc_data))
-            .resource("/api/viber/webhook/", |r| {
-                r.f(api::viber_webhook)
-            })
+            .resource("/api/viber/webhook/", |r| r.f(api::viber_webhook))
     })
-        .bind(format!("0.0.0.0:{}", get_server_port()))
-        .unwrap()
-        .workers(1)
-        .shutdown_timeout(1)
-        .start();
+    .bind(format!("0.0.0.0:{}", get_server_port()))
+    .unwrap()
+    .workers(1)
+    .shutdown_timeout(1)
+    .start();
 
     let _ = sys.run();
 }

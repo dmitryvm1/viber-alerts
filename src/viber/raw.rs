@@ -32,7 +32,7 @@ pub fn send_video_message(
             id: None,
             language: None,
             country: None,
-            api_version: None
+            api_version: None,
         },
         keyboard: None,
         duration: 0,
@@ -66,7 +66,7 @@ pub fn send_file_message(
             id: None,
             language: None,
             country: None,
-            api_version: None
+            api_version: None,
         },
         keyboard: None,
         file_name: Cow::from(file_name),
@@ -99,7 +99,7 @@ pub fn send_picture_message(
             id: None,
             language: None,
             country: None,
-            api_version: None
+            api_version: None,
         },
         keyboard: None,
         text: Cow::from(text),
@@ -118,7 +118,7 @@ pub fn send_text_message(
     text: &str,
     receiver: &str,
     auth: &String,
-    kb: Option<messages::Keyboard>
+    kb: Option<messages::Keyboard>,
 ) -> impl Future<Item = ClientResponse, Error = SendRequestError> {
     let text_message = messages::TextMessage {
         _type: Cow::from("text"),
@@ -132,7 +132,7 @@ pub fn send_text_message(
             id: None,
             language: None,
             country: None,
-            api_version: None
+            api_version: None,
         },
         tracking_data: Cow::from(""),
     };
