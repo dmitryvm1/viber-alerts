@@ -215,36 +215,44 @@ impl WeatherInquirer {
         }
     }
 
-    pub fn format_forecast(data_point: &DataPoint) -> String {
+    pub fn format_forecast(data_point: &DataPoint) -> Result<String, failure::Error> {
+       /* let dt = Utc.timestamp(data_point.time as i64, 0);
+        format!("{:?}\n{:?}", dt.to_rfc2822(), data_point)*/
+
         let dt = Utc.timestamp(data_point.time as i64, 0);
-        format!("{:?}\n{:?}", dt.to_rfc2822(), data_point)
-        /*
-        let dt = Utc.timestamp(day.time as i64, 0);
-        let (precip, probability) = match day.precip_type.as_ref() {
+        let (precip, probability) = match data_point.precip_type.as_ref() {
             Some(p) => {
                 let pr = match p {
-                    PrecipType::Rain => "Дождь",
-                    PrecipType::Snow => "Снег",
-                    PrecipType::Sleet => "Дождь со снегом",
+                    PrecipType::Rain => "Дожщ",
+                    PrecipType::Snow => "Сніг",
+                    PrecipType::Sleet => "Дожщ зі снігом",
                 };
-                (pr, day.precip_probability.unwrap())
+                (pr, data_point.precip_probability.unwrap())
             }
             None => ("-", 0.0),
         };
-        format!("Прогноз на завтра {}.{}: \nТемпература: {:?} - {:?} \nОсадки: {:?} с вероятностью {}%", dt.day(),
+
+        let precip_formatted = if probability < 0.01 {
+            "Без опадів".to_owned()
+        } else {
+            format!(" \nОпади: {:?} з ймовірністю {:.2}%", precip, probability * 100.0)
+        };
+        Ok(format!("Прогноз на завтра {}.{}:\n{}\nТемпература: {:?} - {:?}\n{}", dt.day(),
                               dt.month(),
-                              day.temperature_low.ok_or(
+                data_point.summary.clone().unwrap_or_default(),
+                data_point.temperature_low.ok_or(
                                   JsonError::MissingField { name: "temperature_low".to_owned() }
                               )?,
-                              day.temperature_high.ok_or(
+                data_point.temperature_high.ok_or(
                                   JsonError::MissingField { name: "temperature_high".to_owned() }
-                              )?, precip, probability * 100.0);*/
+                              )?, &precip_formatted))
     }
 
     pub fn send_forecast_for_tomorrow(&self, to: &str) -> Result<(), failure::Error> {
         use common::get_default_keyboard;
         let day = self.tomorrow()?;
-        let msg = WeatherInquirer::format_forecast(day);
+
+        let msg = WeatherInquirer::format_forecast(day)?;
         self.viber.send_text_to(
             msg.as_str(),
             to,
