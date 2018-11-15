@@ -10,6 +10,7 @@ use std::io::Read;
 use std::io::Write;
 use AppStateType;
 use actix::Handler;
+use viber;
 
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
@@ -32,14 +33,18 @@ pub struct WeatherInquirer {
     pub app_state: AppStateType,
     pub last_response: Option<ApiResponse>,
     pub last_subscriber_update: i64,
+    pub viber: viber::Viber,
 }
 
 impl WeatherInquirer {
     pub fn new(app_state: AppStateType) -> WeatherInquirer {
+        let api = app_state.read().unwrap().config.viber_api_key.clone().unwrap();
+        let admin = app_state.read().unwrap().config.admin_id.clone().unwrap();
         WeatherInquirer {
             app_state,
             last_response: None,
             last_subscriber_update: 0,
+            viber: viber::Viber::new(api, admin)
         }
     }
 }
@@ -80,7 +85,7 @@ impl WeatherInquirer {
     pub fn download_image(&self, name: &str) -> Result<(), actix_web::error::Error> {
         client::get(format!(
             "{}weather/kiev/{}",
-            self.app_state.lock().unwrap().config.domain_root_url.as_ref().unwrap(),
+            self.app_state.read().unwrap().config.domain_root_url.as_ref().unwrap(),
             name
         ))
         .finish()
@@ -142,7 +147,7 @@ impl WeatherInquirer {
     }
 
     fn inquire(&self) -> Result<ApiResponse, failure::Error> {
-        let config = &self.app_state.lock().unwrap().config;
+        let config = &self.app_state.read().unwrap().config;
         let api_key = &config.dark_sky_api_key;
         let reqwest_client = reqwest::Client::new();
         let api_client = forecast::ApiClient::new(&reqwest_client);
@@ -169,14 +174,13 @@ impl WeatherInquirer {
     }
 
     pub fn try_broadcast(&mut self) {
-        let admin = self.app_state.lock().unwrap().viber.admin_id.clone();
-        let mut runner = &mut self.app_state.lock().unwrap().last_text_broadcast;
+        let mut runner = &mut self.app_state.write().unwrap().last_text_broadcast;
 
         //16-20 UTC+2
-       // runner.daily(14, 18, &mut || {
-           // debug!("Trying to broadcast weather");
-           // self.send_forecast_for_tomorrow(&admin).is_ok()
-      //  });
+        runner.daily(14, 20, &mut || {
+            debug!("Trying to broadcast weather");
+            self.send_forecast_for_tomorrow(&self.viber.admin_id).is_ok()
+        });
     }
 
     pub fn send_image(&self) -> Result<(), failure::Error> {
@@ -189,16 +193,15 @@ impl WeatherInquirer {
         if path.exists() {
             let url = format!(
                 "{}api/static/{}",
-                self.app_state.lock().unwrap().config.hosting_root_url.as_ref().unwrap(),
+                self.app_state.read().unwrap().config.hosting_root_url.clone().unwrap(),
                 &name
             );
             let thumb_url = format!(
                 "{}api/static/{}",
-                self.app_state.lock().unwrap().config.hosting_root_url.as_ref().unwrap(),
+                self.app_state.read().unwrap().config.hosting_root_url.clone().unwrap(),
                 &thumb
             );
-            self.app_state.lock().unwrap()
-                .viber
+            self.viber
                 .send_picture_message_to_admin(
                     url.as_str(),
                     thumb_url.as_str(),
@@ -242,14 +245,12 @@ impl WeatherInquirer {
         use common::get_default_keyboard;
         let day = self.tomorrow()?;
         let msg = WeatherInquirer::format_forecast(day);
-
-        info!("Sending viber message: {}", &msg);
-        // self.app_state.viber.lock().unwrap().broadcast_text(msg.as_str())?;
-        self.app_state.lock().unwrap().viber.send_text_to(
+        self.viber.send_text_to(
             msg.as_str(),
             to,
             Some(get_default_keyboard()),
         )?;
+        info!("Viber message sent: {}", &msg);
         Ok(())
     }
 }

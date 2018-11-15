@@ -44,6 +44,7 @@ use actix::Handler;
 use common::messages::*;
 use actix::Recipient;
 use actix::Message;
+use viber::messages;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -63,20 +64,21 @@ static QUERY_INTERVAL: u64 = 6;
 #[cfg(not(debug_assertions))]
 static QUERY_INTERVAL: u64 = 60;
 
-pub type AppStateType = Arc<Mutex<AppState>>;
+pub type AppStateType = Arc<RwLock<AppState>>;
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 
 impl Actor for WeatherInquirer {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
-        let mut state = self.app_state.lock().unwrap();
-        if  state
-            .viber
-            .update_subscribers()
-            .is_err()
         {
-            warn!("Failed to read subscribers.");
-        };
+            let mut state = self.app_state.write().unwrap();
+            if  self.viber
+                .update_subscribers(&mut state.subscribers)
+                .is_err()
+            {
+                warn!("Failed to read subscribers.");
+            };
+        }
         ctx.run_interval(
             std::time::Duration::new(QUERY_INTERVAL, 0),
             |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
@@ -86,10 +88,10 @@ impl Actor for WeatherInquirer {
                     }
                     Ok(success) => {
                         if success {
-                            let mut state = _t.app_state.lock().unwrap();
-                            state
+                            let mut state = _t.app_state.write().unwrap();
+                            _t
                                 .viber
-                                .update_subscribers()
+                                .update_subscribers(&mut state.subscribers)
                                 .map_err(|e| {
                                     warn!("Failed to read subscribers. {:?}", e);
                                 });
@@ -109,7 +111,7 @@ impl Actor for WeatherInquirer {
 impl Handler<TomorrowForecast> for WeatherInquirer {
     type Result = ();
 
-    fn handle(&mut self, msg: TomorrowForecast, ctx: & mut Context<Self>) -> <Self as Handler<TomorrowForecast>>::Result {
+    fn handle(&mut self, msg: TomorrowForecast, ctx: & mut Context<Self>) -> Self::Result {
         debug!("handling tomorrow forecast");
         self.send_forecast_for_tomorrow(&msg.user_id).map_err(|_| {
             error!("Can't send forecast for tomorrow to {}", &msg.user_id);
@@ -118,9 +120,9 @@ impl Handler<TomorrowForecast> for WeatherInquirer {
 }
 
 pub struct AppState {
-    pub addr: Option<Recipient<TomorrowForecast>>,
+    pub addr: Mutex<Option<Recipient<TomorrowForecast>>>,
     pub config: config::Config,
-    pub viber: viber::Viber,
+    pub subscribers: Vec<messages::Member>,
     pub last_text_broadcast: scheduler::TryTillSuccess,
     pub pool: PgPool,
     template: tera::Tera, // <- store tera template in application state
@@ -134,11 +136,11 @@ impl AppState {
         let tera = tera::Tera::new("templates/**/*").expect("Failed to load templates");
         AppState {
             config: config,
-            viber: viber::Viber::new(viber_api_key.unwrap(), admin_id.unwrap()),
+            subscribers: Vec::new(),
             last_text_broadcast: scheduler::TryTillSuccess::new(),
             template: tera,
             pool,
-            addr: None
+            addr: Mutex::new(None)
         }
     }
 }
@@ -177,13 +179,13 @@ fn main() {
     let pool = r2d2::Pool::builder()
         .build(manager)
         .expect("Failed to create pool.");
-    let mut state = Arc::new(Mutex::new(AppState::new(config, pool)));
+    let mut state = Arc::new(RwLock::new(AppState::new(config, pool)));
     let _state = state.clone();
 
     let _server = Arbiter::start(move |ctx: &mut Context<_>| weather::WeatherInquirer::new(_state));
     let forecast_addr = _server.recipient();
     {
-        state.lock().unwrap().addr = Some(forecast_addr);
+        state.write().unwrap().addr = Mutex::new(Some(forecast_addr));
     }
 
     let addr = HttpServer::new(move || {

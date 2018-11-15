@@ -22,10 +22,10 @@ pub fn list(
 ) -> Result<HttpResponse, Error> {
     let mut ctx = tera::Context::new();
     ctx.insert("text", &"Welcome!".to_owned());
-    let ts = state.lock().unwrap().last_text_broadcast.last_success;
+    let ts = state.read().unwrap().last_text_broadcast.last_success;
     ctx.insert("last_broadcast", &chrono::Utc.timestamp(ts, 0).to_rfc2822());
-    ctx.insert("members", &state.lock().unwrap().viber.subscribers);
-    let html = state.lock().unwrap().template.render("index.html", &ctx).map_err(|e| {
+    ctx.insert("members", &state.read().unwrap().subscribers);
+    let html = state.read().unwrap().template.render("index.html", &ctx).map_err(|e| {
         error!("Template error! {:?}", e);
         error::ErrorInternalServerError("Template error")
     })?;
@@ -37,8 +37,9 @@ pub fn viber_webhook(
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
     use std::borrow::Cow;
 
-    let addr:Option<Recipient<TomorrowForecast>> = req.state().lock().unwrap().addr.clone();
-    let key = req.state().lock().unwrap().viber.api_key.clone();
+    let state = req.state().read().unwrap();
+    let addr:Option<Recipient<TomorrowForecast>> = state.addr.lock().unwrap().clone();
+    let key = req.state().read().unwrap().config.viber_api_key.clone().unwrap();
     let kb = Some(get_default_keyboard());
 
     req.payload()
@@ -111,7 +112,7 @@ pub fn send_message(
     req: &HttpRequest<AppStateType>,
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
     let state = req.state();
-    let config = &state.lock().unwrap().config;
+    let config = &state.read().unwrap().config;
     let viber_api_key = &config.viber_api_key;
     let key = &viber_api_key.as_ref();
     super::viber::raw::send_text_message(
@@ -132,7 +133,7 @@ pub fn acc_data(
     req: &HttpRequest<AppStateType>,
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
     let state = req.state();
-    let config: &super::config::Config = &state.lock().unwrap().config;
+    let config: &super::config::Config = &state.read().unwrap().config;
     super::viber::raw::get_account_data(config.viber_api_key.as_ref().unwrap())
         .from_err()
         .and_then(|response| {
@@ -149,7 +150,7 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
     if req.identity().is_none() {
         let mut ctx = tera::Context::new();
         ctx.insert("app_name", "Viber Alerts");
-        let html = state.lock().unwrap().template.render("login.html", &ctx).map_err(|e| {
+        let html = state.read().unwrap().template.render("login.html", &ctx).map_err(|e| {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")
         })?;
@@ -157,10 +158,10 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
     } else {
         let mut ctx = tera::Context::new();
         ctx.insert("text", &"Welcome!".to_owned());
-        let ts = state.lock().unwrap().last_text_broadcast.last_success;
+        let ts = state.read().unwrap().last_text_broadcast.last_success;
         ctx.insert("last_broadcast", &chrono::Utc.timestamp(ts, 0).to_rfc2822());
-        ctx.insert("members", &state.lock().unwrap().viber.subscribers);
-        let html = state.lock().unwrap().template.render("index.html", &ctx).map_err(|e| {
+        ctx.insert("members", &state.read().unwrap().subscribers);
+        let html = state.read().unwrap().template.render("index.html", &ctx).map_err(|e| {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")
         })?;
@@ -176,7 +177,7 @@ pub struct LoginParams {
 
 pub fn login((req, params): (HttpRequest<AppStateType>, Form<LoginParams>)) -> HttpResponse {
     {
-        let pool = &req.state().lock().unwrap().pool;
+        let pool = &req.state().read().unwrap().pool;
         let new_post = NewPost {
             body: "test",
             title: "title",
@@ -192,7 +193,7 @@ pub fn login((req, params): (HttpRequest<AppStateType>, Form<LoginParams>)) -> H
 }
 
 pub fn users(req: &HttpRequest<AppStateType>) -> HttpResponse {
-    let pool = &req.state().lock().unwrap().pool;
+    let pool = &req.state().read().unwrap().pool;
     let users = Post::all(pool.get().unwrap().deref()).unwrap();
     HttpResponse::Ok().body(format!("{:?}", users))
 }

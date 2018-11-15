@@ -8,7 +8,6 @@ pub mod raw;
 pub struct Viber {
     pub api_key: String,
     pub admin_id: String,
-    pub subscribers: Vec<messages::Member>,
 }
 
 #[derive(Debug, Fail)]
@@ -21,36 +20,25 @@ impl Viber {
     pub fn new(api_key: String, admin_id: String) -> Viber {
         Viber {
             api_key,
-            admin_id,
-            subscribers: Vec::with_capacity(16),
+            admin_id
         }
     }
 
-    pub fn update_subscribers(&mut self) -> std::result::Result<(), failure::Error> {
+    pub fn update_subscribers(&self, out: &mut Vec<messages::Member>) -> std::result::Result<(), failure::Error> {
         raw::get_account_data(&self.api_key)
             .from_err()
             .and_then(|response| {
                 response.body().from_err().and_then(|data| {
                     let account_info: messages::AccountInfo = serde_json::from_slice(&data)?;
-                    self.subscribers.clear();
+                    out.clear();
                     for member in account_info.members {
                         info!("Member: {:?}", member);
-                        self.subscribers.push(member);
+                        out.push(member);
                     }
                     Ok(())
                 })
             })
             .wait()
-    }
-
-    pub fn broadcast_text(&self, text: &str) -> std::result::Result<(), failure::Error> {
-        for m in &self.subscribers {
-            debug!("Sending text to: {}", m.id);
-            if self.send_text_to(text, m.id.as_str(), None).is_err() {
-                warn!("Could not send text to user: {}", m.name);
-            }
-        }
-        Ok(())
     }
 
     pub fn send_text_to(
