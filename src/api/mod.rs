@@ -132,8 +132,14 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
     let state = req.state();
     if req.identity().is_none() {
         let mut ctx = tera::Context::new();
-        ctx.insert("app_name", "Viber Alerts");
-        let html = state.read().unwrap().template.render("login.html", &ctx).map_err(|e| {
+        /*ctx.insert("app_name", "Viber Alerts");
+        let html = state.read().unwrap().template.render("oauth_login.html", &ctx).map_err(|e| {
+            error!("Template error! {:?}", e);
+            error::ErrorInternalServerError("Template error")
+        })?;*/
+        ctx.insert("client_id", &state.config.google_client_id);
+        ctx.insert("auth_redirect", "http://localhost:8080");
+        let html = state.read().unwrap().template.render("oauth_login.html", &ctx).map_err(|e| {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")
         })?;

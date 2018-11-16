@@ -8,6 +8,8 @@ pub struct Config {
     pub dark_sky_api_key: Option<String>,
     pub hosting_root_url: Option<String>,
     pub database_url: Option<String>,
+    pub google_client_id: Option<String>,
+    pub google_client_secret: Option<String>,
 }
 
 impl Config {
@@ -36,6 +38,8 @@ impl Config {
             domain_root_url: std::env::var("DOMAIN_ROOT_URL").ok(),
             hosting_root_url: std::env::var("HOSTING_ROOT_URL").ok(),
             database_url: std::env::var("DATABASE_URL").ok(),
+            google_client_id: std::env::var("GOOGLE_CLIENT_ID").ok(),
+            google_client_secret: std::env::var("GOOGLE_CLIENT_SECRET").ok(),
         }
     }
 
