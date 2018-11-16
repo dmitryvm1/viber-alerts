@@ -193,7 +193,7 @@ impl WeatherInquirer {
             error!("Could not get bitcoin price.");
         }
     }
-    
+
     pub fn try_broadcast(&mut self) {
         {
             let mut runner = &mut self.app_state.write().unwrap().last_text_broadcast;

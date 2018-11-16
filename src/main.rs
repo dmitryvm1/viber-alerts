@@ -211,6 +211,7 @@ fn main() {
             .resource("/login", |r| r.method(http::Method::POST).with(api::login))
             .resource("/logout", |r| r.f(api::logout))
             .resource("/", |r| r.f(api::index))
+            .resource("/google6e03bff5229f1e21.html", |r| r.f(|_| "google-site-verification: google6e03bff5229f1e21.html"))
             .resource("/users", |r| r.f(api::users))
             .resource("/list", |r| r.method(http::Method::GET).with(api::list))
             .resource("/api/send_message/", |r| r.f(api::send_message))
