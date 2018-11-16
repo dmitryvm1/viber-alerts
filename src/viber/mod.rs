@@ -37,8 +37,7 @@ impl Viber {
                     }
                     Ok(())
                 })
-            })
-            .wait()
+            }).wait()
     }
 
     pub fn send_text_to(

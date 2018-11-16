@@ -13,7 +13,7 @@ use std::ops::Deref;
 use viber::messages::CallbackMessage;
 use viber::raw;
 use std::borrow::BorrowMut;
-use common::messages::TomorrowForecast;
+use common::messages::{ WorkerUnit };
 use weather::WeatherInquirer;
 use actix::Recipient;
 
@@ -38,7 +38,7 @@ pub fn viber_webhook(
     use std::borrow::Cow;
 
     let state = req.state().read().unwrap();
-    let addr:Option<Recipient<TomorrowForecast>> = state.addr.lock().unwrap().clone();
+    let addr:Option<Recipient<WorkerUnit>> = state.addr.lock().unwrap().clone();
     let key = req.state().read().unwrap().config.viber_api_key.clone().unwrap();
     let kb = Some(get_default_keyboard());
 
@@ -68,28 +68,11 @@ pub fn viber_webhook(
                             let message = msg.message.as_ref().unwrap();
                             match message.text.as_ref() {
                                 "bitcoin" => {
-                                    let price = bitcoin::get_bitcoin_price();
-                                    info!("btc {:?}", price);
-                                    if price.is_some() {
-                                        let price = price.unwrap();
-                                        let msg_text = format!(
-                                            "{} \n1 BTC = {} $",
-                                            price.time.updateduk, price.bpi.USD.rate
-                                        );
-                                        raw::send_text_message(
-                                            msg_text.as_str(),
-                                            &user.to_string(),
-                                            &key,
-                                            kb,
-                                        )
-                                        .wait();
-                                    } else {
-                                        error!("Could not get bitcoin price.");
-                                    }
+                                    addr.unwrap().do_send(WorkerUnit::BTCPrice { user_id: user.to_string() });
                                 },
                                 "forecast_kiev_tomorrow" => {
                                     info!("message parsed {:?}", msg);
-                                    addr.unwrap().do_send(TomorrowForecast { user_id: user.to_string() });
+                                    addr.unwrap().do_send(WorkerUnit::TomorrowForecast { user_id: user.to_string() });
                                 }
 
                                 _ => {}

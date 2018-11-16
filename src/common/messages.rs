@@ -1,6 +1,7 @@
 use actix::Message;
 
 #[derive(Message)]
-pub struct TomorrowForecast {
-    pub user_id: String
+pub enum WorkerUnit {
+    TomorrowForecast{ user_id: String },
+    BTCPrice{ user_id: String }
 }

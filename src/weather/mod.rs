@@ -11,6 +11,9 @@ use std::io::Write;
 use AppStateType;
 use actix::Handler;
 use viber;
+use common::messages::WorkerUnit;
+use bitcoin;
+use common;
 
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
@@ -48,8 +51,6 @@ impl WeatherInquirer {
         }
     }
 }
-
-
 
 impl WeatherInquirer {
     fn is_outdated(&self) -> Result<bool, failure::Error> {
@@ -173,14 +174,43 @@ impl WeatherInquirer {
         serde_json::from_reader(forecast_response).map_err(|e| failure::Error::from(e))
     }
 
-    pub fn try_broadcast(&mut self) {
-        let mut runner = &mut self.app_state.write().unwrap().last_text_broadcast;
+    pub fn send_btc_price(&self, user_id: &str) {
+        let price = bitcoin::get_bitcoin_price();
+        info!("btc {:?}", price);
+        if price.is_some() {
+            let price = price.unwrap();
+            let msg_text = format!(
+                "{} \n1 BTC = {} $",
+                price.time.updateduk, price.bpi.USD.rate
+            );
+            self.viber.send_text_to(
+                msg_text.as_str(),
+                &user_id,
+                Some(common::get_default_keyboard()),
+            ).expect("error sending viber message");
 
-        //16-20 UTC+2
-        runner.daily(14, 20, &mut || {
-            debug!("Trying to broadcast weather");
-            self.send_forecast_for_tomorrow(&self.viber.admin_id).is_ok()
-        });
+        } else {
+            error!("Could not get bitcoin price.");
+        }
+    }
+    
+    pub fn try_broadcast(&mut self) {
+        {
+            let mut runner = &mut self.app_state.write().unwrap().last_text_broadcast;
+            //16-20 UTC+2
+            runner.daily(14, 20, &mut || {
+                debug!("Trying to broadcast weather");
+                self.send_forecast_for_tomorrow(&self.viber.admin_id).is_ok()
+            });
+        }
+        {
+            let mut runner = &mut self.app_state.write().unwrap().last_btc_update;
+            runner.daily(3, 6, &mut || {
+                info!("btc price daily");
+                self.send_btc_price(&self.viber.admin_id);
+                true
+            });
+        }
     }
 
     pub fn send_image(&self) -> Result<(), failure::Error> {

@@ -108,22 +108,32 @@ impl Actor for WeatherInquirer {
     }
 }
 
-impl Handler<TomorrowForecast> for WeatherInquirer {
+impl Handler<WorkerUnit> for WeatherInquirer {
     type Result = ();
 
-    fn handle(&mut self, msg: TomorrowForecast, ctx: & mut Context<Self>) -> Self::Result {
-        debug!("handling tomorrow forecast");
-        self.send_forecast_for_tomorrow(&msg.user_id).map_err(|_| {
-            error!("Can't send forecast for tomorrow to {}", &msg.user_id);
-        });
+    fn handle(&mut self, msg: WorkerUnit, ctx: & mut Context<Self>) -> Self::Result {
+        match msg {
+            WorkerUnit::BTCPrice { user_id } => {
+                self.send_btc_price(&user_id);
+            },
+            WorkerUnit::TomorrowForecast { user_id } => {
+                debug!("handling tomorrow forecast");
+                self.send_forecast_for_tomorrow(&user_id).map_err(|_| {
+                    error!("Can't send forecast for tomorrow to {}", &user_id);
+                });
+            },
+            _ => { }
+        };
+        ()
     }
 }
 
 pub struct AppState {
-    pub addr: Mutex<Option<Recipient<TomorrowForecast>>>,
+    pub addr: Mutex<Option<Recipient<WorkerUnit>>>,
     pub config: config::Config,
     pub subscribers: Vec<messages::Member>,
     pub last_text_broadcast: scheduler::TryTillSuccess,
+    pub last_btc_update: scheduler::TryTillSuccess,
     pub pool: PgPool,
     template: tera::Tera, // <- store tera template in application state
 }
@@ -138,6 +148,7 @@ impl AppState {
             config: config,
             subscribers: Vec::new(),
             last_text_broadcast: scheduler::TryTillSuccess::new(),
+            last_btc_update: scheduler::TryTillSuccess::new(),
             template: tera,
             pool,
             addr: Mutex::new(None)
