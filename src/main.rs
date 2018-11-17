@@ -20,12 +20,19 @@ extern crate chrono;
 extern crate dirs;
 extern crate env_logger;
 extern crate forecast;
-extern crate reqwest;
+extern crate oauth2;
 #[macro_use]
 extern crate failure;
 #[macro_use]
 extern crate tera;
+extern crate url;
+extern crate reqwest;
 
+use url::Url;
+use oauth2::basic::BasicClient;
+use oauth2::prelude::*;
+use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
+             TokenUrl};
 use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{http, middleware, App};
 use std::sync::Arc;
@@ -135,22 +142,24 @@ pub struct AppState {
     pub last_text_broadcast: scheduler::TryTillSuccess,
     pub last_btc_update: scheduler::TryTillSuccess,
     pub pool: PgPool,
+    pub auth_client: Option<BasicClient>,
     template: tera::Tera, // <- store tera template in application state
 }
 
 impl AppState {
-    pub fn new(config: config::Config, pool: PgPool) -> AppState {
+    pub fn new(config: &config::Config, pool: PgPool) -> AppState {
         let viber_api_key = config.viber_api_key.clone();
         let admin_id = config.admin_id.clone();
 
         let tera = tera::Tera::new("templates/**/*").expect("Failed to load templates");
         AppState {
-            config: config,
+            config: (*config).clone(),
             subscribers: Vec::new(),
             last_text_broadcast: scheduler::TryTillSuccess::new(),
             last_btc_update: scheduler::TryTillSuccess::new(),
             template: tera,
             pool,
+            auth_client: None,
             addr: Mutex::new(None)
         }
     }
@@ -163,6 +172,40 @@ fn get_server_port() -> u16 {
         .unwrap_or(8080)
 }
 
+fn prepare_google_auth(config: &config::Config) -> BasicClient {
+    let google_client_id = ClientId::new(
+        config.google_client_id.clone().unwrap()
+    );
+    let google_client_secret = ClientSecret::new(
+        config.google_client_secret.clone().unwrap()
+    );
+    let auth_url = AuthUrl::new(
+        Url::parse("https://accounts.google.com/o/oauth2/v2/auth")
+            .expect("Invalid authorization endpoint URL"),
+    );
+    let token_url = TokenUrl::new(
+        Url::parse("https://www.googleapis.com/oauth2/v4/token")
+            .expect("Invalid token endpoint URL"),
+    );
+
+    // Set up the config for the Google OAuth2 process.
+    let client = BasicClient::new(
+        google_client_id,
+        Some(google_client_secret),
+        auth_url,
+        Some(token_url)
+    )
+        .add_scope(Scope::new("profile".to_owned()))
+        .add_scope(Scope::new("email".to_owned()))
+        .add_scope(Scope::new("https://www.googleapis.com/auth/plus.me".to_owned()))
+        .set_redirect_url(
+            RedirectUrl::new(
+                Url::parse(&format!("{}api/google_oauth/", &config.domain_root_url.clone().unwrap()))
+                    .expect("Invalid redirect URL")
+            )
+        );
+    client
+}
 fn main() {
     use std::borrow::BorrowMut;
 
@@ -190,14 +233,15 @@ fn main() {
     let pool = r2d2::Pool::builder()
         .build(manager)
         .expect("Failed to create pool.");
-    let mut state = Arc::new(RwLock::new(AppState::new(config, pool)));
+    let mut state = Arc::new(RwLock::new(AppState::new(&config, pool)));
     let _state = state.clone();
-
-    let _server = Arbiter::start(move |ctx: &mut Context<_>| weather::WeatherInquirer::new(_state));
+    state.write().unwrap().auth_client = Some(prepare_google_auth(&config));
+ /*   let _server = Arbiter::start(move |ctx: &mut Context<_>| weather::WeatherInquirer::new(_state));
     let forecast_addr = _server.recipient();
     {
         state.write().unwrap().addr = Mutex::new(Some(forecast_addr));
     }
+    */
 
     let addr = HttpServer::new(move || {
         App::with_state(state.clone())
@@ -210,6 +254,7 @@ fn main() {
             .handler("/api/static", fs::StaticFiles::new("static/").unwrap())
             .resource("/login", |r| r.method(http::Method::POST).with(api::login))
             .resource("/logout", |r| r.f(api::logout))
+            .resource("/api/google_oauth/", |r| r.f(api::google_oauth))
             .resource("/", |r| r.f(api::index))
             .resource("/google6e03bff5229f1e21.html", |r| r.f(|_| "google-site-verification: google6e03bff5229f1e21.html"))
             .resource("/users", |r| r.f(api::users))

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub viber_api_key: Option<String>,
     pub admin_id: Option<String>,

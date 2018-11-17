@@ -1,4 +1,4 @@
-use super::AppStateType;
+
 use actix_web::middleware::identity::RequestIdentity;
 use actix_web::*;
 use bitcoin;
@@ -16,6 +16,16 @@ use std::borrow::BorrowMut;
 use common::messages::{ WorkerUnit };
 use weather::WeatherInquirer;
 use actix::Recipient;
+use actix_web::http::StatusCode;
+use failure::Fail;
+use super::*;
+
+use oauth2::basic::BasicClient;
+use oauth2::prelude::*;
+use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
+             TokenUrl};
+
+pub mod auth;
 
 pub fn list(
     (state, query): (State<AppStateType>, Query<HashMap<String, String>>),
@@ -128,17 +138,36 @@ pub fn acc_data(
         .responder()
 }
 
+pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
+    debug!("{:?}", req.headers());
+    let code = AuthorizationCode::new(req.query().get("code").unwrap().to_string());
+    let state: &AppStateType = req.state();
+    let token = {
+        let st = state.read().unwrap();
+        let client = st.auth_client.as_ref().unwrap();
+        debug!("{:?}", req.query().get("code").unwrap().to_string());
+        client.exchange_code(code).map_err(|e|{
+            actix_web::error::ErrorInternalServerError(e)
+        })?
+    };
+    Ok(HttpResponse::Ok().content_type("text/html").body(token.access_token().secret()))
+}
+
 pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
-    let state = req.state();
+    let state: &AppStateType = req.state();
     if req.identity().is_none() {
+
         let mut ctx = tera::Context::new();
         /*ctx.insert("app_name", "Viber Alerts");
         let html = state.read().unwrap().template.render("oauth_login.html", &ctx).map_err(|e| {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")
         })?;*/
-        ctx.insert("client_id", &state.config.google_client_id);
-        ctx.insert("auth_redirect", "http://localhost:8080");
+        let st = state.read().unwrap();
+        let client = st.auth_client.as_ref().unwrap();
+        let (authorize_url, csrf_state) = client.authorize_url(CsrfToken::new_random);
+        debug!("{:?}", authorize_url);
+        ctx.insert("auth_url", &authorize_url.to_string());
         let html = state.read().unwrap().template.render("oauth_login.html", &ctx).map_err(|e| {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")

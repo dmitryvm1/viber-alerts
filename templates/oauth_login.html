@@ -5,16 +5,16 @@
     <title>Login</title>
 </head>
 <body>
+<button onclick="login()">Login</button>
+<button onclick="logout()">Logout</button>
 
 <script type="text/javascript">
-window.location.replace("https://accounts.google.com/o/oauth2/v2/auth?"+
- "scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&"+
- "access_type=offline&"+
- "include_granted_scopes=true&"+
- "state=state_parameter_passthrough_value&"+
- "redirect_uri={{ auth_redirect }}"+
- "response_type=code&"+
- "client_id={{ client_id }}");
+function login() {
+window.location.replace("{{auth_url|safe}}");
+ }
+
+ function logout() {
+ }
 </script>
 </body>
 </html>
