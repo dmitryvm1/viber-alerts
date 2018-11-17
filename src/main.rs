@@ -195,8 +195,8 @@ fn prepare_google_auth(config: &config::Config) -> BasicClient {
         auth_url,
         Some(token_url)
     )
-        .add_scope(Scope::new("profile".to_owned()))
-        .add_scope(Scope::new("email".to_owned()))
+        .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.profile".to_owned()))
+        .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.email".to_owned()))
         .add_scope(Scope::new("https://www.googleapis.com/auth/plus.me".to_owned()))
         .set_redirect_url(
             RedirectUrl::new(
@@ -236,12 +236,12 @@ fn main() {
     let mut state = Arc::new(RwLock::new(AppState::new(&config, pool)));
     let _state = state.clone();
     state.write().unwrap().auth_client = Some(prepare_google_auth(&config));
- /*   let _server = Arbiter::start(move |ctx: &mut Context<_>| weather::WeatherInquirer::new(_state));
+    let _server = Arbiter::start(move |ctx: &mut Context<_>| weather::WeatherInquirer::new(_state));
     let forecast_addr = _server.recipient();
     {
         state.write().unwrap().addr = Mutex::new(Some(forecast_addr));
     }
-    */
+
 
     let addr = HttpServer::new(move || {
         App::with_state(state.clone())

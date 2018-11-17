@@ -156,7 +156,6 @@ pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Err
 pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
     let state: &AppStateType = req.state();
     if req.identity().is_none() {
-
         let mut ctx = tera::Context::new();
         /*ctx.insert("app_name", "Viber Alerts");
         let html = state.read().unwrap().template.render("oauth_login.html", &ctx).map_err(|e| {
