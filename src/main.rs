@@ -27,6 +27,7 @@ extern crate failure;
 extern crate tera;
 extern crate url;
 extern crate reqwest;
+extern crate tokio_openssl;
 
 use url::Url;
 use oauth2::basic::BasicClient;

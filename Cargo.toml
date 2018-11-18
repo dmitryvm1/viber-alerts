@@ -5,6 +5,7 @@ version = "0.1.0"
 [dependencies]
 toml = "*"
 actix = "0.7"
+tokio-openssl = "0.2"
 actix-web = {version = "^0.7" , features=["alpn"] }
 futures = "0.1"
 env_logger = "0.5"

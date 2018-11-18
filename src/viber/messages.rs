@@ -64,17 +64,24 @@ impl<'a> EventTypes<'a> {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Button<'s> {
-    pub ActionType: Cow<'s, str>,
-    pub ActionBody: Cow<'s, str>,
-    pub Text: Cow<'s, str>,
-    pub TextSize: Cow<'s, str>,
+    #[serde(rename = "ActionType")]
+    pub action_type: Cow<'s, str>,
+    #[serde(rename = "ActionBody")]
+    pub action_body: Cow<'s, str>,
+    #[serde(rename = "Text")]
+    pub text: Cow<'s, str>,
+    #[serde(rename = "TextSize")]
+    pub text_size: Cow<'s, str>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Keyboard<'s> {
-    pub Type: Cow<'s, str>,
-    pub DefaultHeight: bool,
-    pub Buttons: Vec<Button<'s>>,
+    #[serde(rename = "Type")]
+    pub _type: Cow<'s, str>,
+    #[serde(rename = "DefaultHeight")]
+    pub default_height: bool,
+    #[serde(rename = "Buttons")]
+    pub buttons: Vec<Button<'s>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

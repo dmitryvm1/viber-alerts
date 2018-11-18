@@ -8,6 +8,10 @@ use futures::prelude::*;
 use models::NewPost;
 use models::Post;
 use std::borrow::Borrow;
+use {
+    openssl::ssl::{Error as SslError, SslConnector, SslMethod},
+    tokio_openssl::SslConnectorExt,
+};
 use std::collections::HashMap;
 use std::ops::Deref;
 use viber::messages::CallbackMessage;
@@ -18,12 +22,16 @@ use weather::WeatherInquirer;
 use actix::Recipient;
 use actix_web::http::StatusCode;
 use failure::Fail;
+use futures::future::*;
 use super::*;
+
 
 use oauth2::basic::BasicClient;
 use oauth2::prelude::*;
 use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
              TokenUrl};
+use api::auth::GoogleProfile;
+
 
 pub mod auth;
 
@@ -138,7 +146,7 @@ pub fn acc_data(
         .responder()
 }
 
-pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
+pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Box<Future<Item = HttpResponse, Error = Error>> {
     debug!("{:?}", req.headers());
     let code = AuthorizationCode::new(req.query().get("code").unwrap().to_string());
     let state: &AppStateType = req.state();
@@ -148,9 +156,37 @@ pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Err
         debug!("{:?}", req.query().get("code").unwrap().to_string());
         client.exchange_code(code).map_err(|e|{
             actix_web::error::ErrorInternalServerError(e)
-        })?
+        })
     };
-    Ok(HttpResponse::Ok().content_type("text/html").body(token.access_token().secret()))
+    if token.is_err() {
+        debug!("token error");
+        return Box::new(err(actix_web::error::ErrorUnauthorized("could not exchange token")));
+    }
+    let ssl_conn = SslConnector::builder(SslMethod::tls()).unwrap().build();
+    let conn = actix_web::client::ClientConnector::with_connector(ssl_conn);
+    actix_web::client::get(&format!("https://www.googleapis.com/userinfo/v2/me?access_token={}", token.unwrap().access_token().secret()))
+        .with_connector(conn.start())
+        .finish()
+        .unwrap()
+        .send()
+        .from_err()
+        .and_then(|response|{
+            debug!("response ok: {:?}", response.status());
+            response.body()
+                .from_err()
+                .and_then(|bytes|{
+                    debug!("body ok");
+                let json: GoogleProfile = serde_json::from_slice(&bytes).map_err(|e| {
+                    debug!("parser error");
+                    actix_web::error::PayloadError::EncodingCorrupted
+                }).map_err(|e| {
+                    debug!("error {:?}", e);
+                    e
+                })?;
+                    debug!("{:?}", json);
+                    Ok(HttpResponse::Ok().content_type("text/html").body(format!("{:?}", json)))
+            })
+        }).responder()
 }
 
 pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
