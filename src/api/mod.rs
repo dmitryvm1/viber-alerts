@@ -22,16 +22,15 @@ use weather::WeatherInquirer;
 use actix::Recipient;
 use actix_web::http::StatusCode;
 use failure::Fail;
-use futures::future::*;
+use futures::future::{ok as fut_ok};
 use super::*;
-
 
 use oauth2::basic::BasicClient;
 use oauth2::prelude::*;
 use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
              TokenUrl};
 use api::auth::GoogleProfile;
-
+use std::time::Duration;
 
 pub mod auth;
 
@@ -146,7 +145,7 @@ pub fn acc_data(
         .responder()
 }
 
-pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Box<Future<Item = HttpResponse, Error = Error>> {
+pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error>  {
     debug!("{:?}", req.headers());
     let code = AuthorizationCode::new(req.query().get("code").unwrap().to_string());
     let state: &AppStateType = req.state();
@@ -160,19 +159,28 @@ pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Box<Future<Item = HttpRe
     };
     if token.is_err() {
         debug!("token error");
-        return Box::new(err(actix_web::error::ErrorUnauthorized("could not exchange token")));
+        return Err(actix_web::error::ErrorUnauthorized("could not exchange token"));
     }
-    let ssl_conn = SslConnector::builder(SslMethod::tls()).unwrap().build();
+    debug!("token: {}", &token.as_ref().unwrap().access_token().secret());
+    let resp = reqwest::get(&format!("https://www.googleapis.com/userinfo/v2/me?access_token={}", token.unwrap().access_token().secret())).unwrap();
+    let json: GoogleProfile = serde_json::from_reader(resp).unwrap();
+   /* let ssl_conn = SslConnector::builder(SslMethod::tls()).unwrap().build();
     let conn = actix_web::client::ClientConnector::with_connector(ssl_conn);
-    actix_web::client::get(&format!("https://www.googleapis.com/userinfo/v2/me?access_token={}", token.unwrap().access_token().secret()))
+
+    let json = actix_web::client::get(&format!("https://www.googleapis.com/userinfo/v2/me?access_token={}", token.unwrap().access_token().secret()))
         .with_connector(conn.start())
+        .timeout(Duration::new(30, 0))
         .finish()
         .unwrap()
         .send()
-        .from_err()
+        .from_err::<actix_web::error::Error>()
         .and_then(|response|{
             debug!("response ok: {:?}", response.status());
             response.body()
+                .map_err(|e| {
+                    debug!("error {:?}", e);
+                    e
+                })
                 .from_err()
                 .and_then(|bytes|{
                     debug!("body ok");
@@ -184,9 +192,13 @@ pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Box<Future<Item = HttpRe
                     e
                 })?;
                     debug!("{:?}", json);
-                    Ok(HttpResponse::Ok().content_type("text/html").body(format!("{:?}", json)))
+
+                    Ok(json)
             })
-        }).responder()
+        }).wait().expect("error requesting profile info");
+*/
+    req.remember(json.email.unwrap());
+    Ok(HttpResponse::Ok().content_type("text/html").body("logged in"))
 }
 
 pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {

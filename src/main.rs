@@ -257,6 +257,7 @@ fn main() {
             .resource("/logout", |r| r.f(api::logout))
             .resource("/api/google_oauth/", |r| r.f(api::google_oauth))
             .resource("/", |r| r.f(api::index))
+            .resource("/api/", |r| r.f(api::index))
             .resource("/google6e03bff5229f1e21.html", |r| r.f(|_| "google-site-verification: google6e03bff5229f1e21.html"))
             .resource("/users", |r| r.f(api::users))
             .resource("/list", |r| r.method(http::Method::GET).with(api::list))
