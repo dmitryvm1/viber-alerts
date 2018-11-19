@@ -4,8 +4,8 @@ use bitcoin;
 use chrono::TimeZone;
 use common::*;
 use futures::prelude::*;
-use models::NewPost;
-use models::Post;
+use models::NewUser;
+use models::User;
 use std::borrow::Borrow;
 use {
     openssl::ssl::{Error as SslError, SslConnector, SslMethod},
@@ -213,7 +213,7 @@ pub struct LoginParams {
 
 pub fn users(req: &HttpRequest<AppStateType>) -> HttpResponse {
     let pool = &req.state().read().unwrap().pool;
-    let users = Post::all(pool.get().unwrap().deref()).unwrap();
+    let users = User::all(pool.get().unwrap().deref()).unwrap();
     HttpResponse::Ok().body(format!("{:?}", users))
 }
 

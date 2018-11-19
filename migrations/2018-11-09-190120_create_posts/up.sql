@@ -1,7 +1,7 @@
 -- Your SQL goes here
-CREATE TABLE posts (
+CREATE TABLE users (
   id SERIAL PRIMARY KEY,
-  title VARCHAR NOT NULL,
-  body TEXT NOT NULL,
-  published BOOLEAN NOT NULL DEFAULT 'f'
+  email VARCHAR,
+  viber_id TEXT NOT NULL,
+  broadcast BOOLEAN NOT NULL DEFAULT 'f'
 )

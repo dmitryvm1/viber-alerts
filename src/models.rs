@@ -2,30 +2,30 @@ use diesel::prelude::{PgConnection, QueryResult};
 use diesel::ExpressionMethods;
 use diesel::QueryDsl;
 use diesel::RunQueryDsl;
-use schema::posts;
+use schema::users;
 #[derive(Insertable)]
-#[table_name = "posts"]
-pub struct NewPost<'a> {
+#[table_name = "users"]
+pub struct NewUser<'a> {
     pub title: &'a str,
     pub body: &'a str,
 }
 
 #[derive(Queryable, Debug)]
-pub struct Post {
+pub struct User {
     pub id: i32,
-    pub title: String,
-    pub body: String,
-    pub published: bool,
+    pub email: String,
+    pub viber_id: String,
+    pub broadcast: bool,
 }
 
-impl Post {
-    pub fn insert(todo: NewPost, conn: &PgConnection) -> QueryResult<usize> {
-        diesel::insert_into(posts::table)
-            .values(&todo)
+impl User {
+    pub fn insert(user: NewUser, conn: &PgConnection) -> QueryResult<usize> {
+        diesel::insert_into(users::table)
+            .values(&user)
             .execute(conn)
     }
 
-    pub fn all(conn: &PgConnection) -> QueryResult<Vec<Post>> {
-        posts::dsl::posts.order(posts::id.desc()).load::<Post>(conn)
+    pub fn all(conn: &PgConnection) -> QueryResult<Vec<User>> {
+        users::dsl::users.order(users::id.desc()).load::<User>(conn)
     }
 }
