@@ -53,6 +53,7 @@ use common::messages::*;
 use actix::Recipient;
 use actix::Message;
 use viber::messages;
+use api::auth::prepare_google_auth;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -75,7 +76,7 @@ static QUERY_INTERVAL: u64 = 60;
 pub type AppStateType = Arc<RwLock<AppState>>;
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 
-impl Actor for WeatherInquirer {
+impl Actor for WebWorker {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
         {
@@ -89,10 +90,10 @@ impl Actor for WeatherInquirer {
         }
         ctx.run_interval(
             std::time::Duration::new(QUERY_INTERVAL, 0),
-            |_t: &mut WeatherInquirer, _ctx: &mut Context<Self>| {
+            |_t: &mut WebWorker, _ctx: &mut Context<Self>| {
                 match _t.inquire_if_needed() {
                     Err(e) => {
-                        error!("Error inquiring weather forecast. {}", e.as_fail());
+                        error!("Error inquiring workers forecast. {}", e.as_fail());
                     }
                     Ok(success) => {
                         if success {
@@ -116,7 +117,7 @@ impl Actor for WeatherInquirer {
     }
 }
 
-impl Handler<WorkerUnit> for WeatherInquirer {
+impl Handler<WorkerUnit> for WebWorker {
     type Result = ();
 
     fn handle(&mut self, msg: WorkerUnit, ctx: & mut Context<Self>) -> Self::Result {
@@ -173,44 +174,11 @@ fn get_server_port() -> u16 {
         .unwrap_or(8080)
 }
 
-fn prepare_google_auth(config: &config::Config) -> BasicClient {
-    let google_client_id = ClientId::new(
-        config.google_client_id.clone().unwrap()
-    );
-    let google_client_secret = ClientSecret::new(
-        config.google_client_secret.clone().unwrap()
-    );
-    let auth_url = AuthUrl::new(
-        Url::parse("https://accounts.google.com/o/oauth2/v2/auth")
-            .expect("Invalid authorization endpoint URL"),
-    );
-    let token_url = TokenUrl::new(
-        Url::parse("https://www.googleapis.com/oauth2/v4/token")
-            .expect("Invalid token endpoint URL"),
-    );
 
-    // Set up the config for the Google OAuth2 process.
-    let client = BasicClient::new(
-        google_client_id,
-        Some(google_client_secret),
-        auth_url,
-        Some(token_url)
-    )
-        .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.profile".to_owned()))
-        .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.email".to_owned()))
-        .add_scope(Scope::new("https://www.googleapis.com/auth/plus.me".to_owned()))
-        .set_redirect_url(
-            RedirectUrl::new(
-                Url::parse(&format!("{}api/google_oauth/", &config.domain_root_url.clone().unwrap()))
-                    .expect("Invalid redirect URL")
-            )
-        );
-    client
-}
 fn main() {
     use std::borrow::BorrowMut;
 
-    env::set_var("RUST_LOG", "viber_alerts=debug");
+    env::set_var("RUST_LOG", "actix_web=error, viber_alerts=info");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
     let sys = actix::System::new(APP_NAME);
@@ -237,7 +205,7 @@ fn main() {
     let mut state = Arc::new(RwLock::new(AppState::new(&config, pool)));
     let _state = state.clone();
     state.write().unwrap().auth_client = Some(prepare_google_auth(&config));
-    let _server = Arbiter::start(move |ctx: &mut Context<_>| weather::WeatherInquirer::new(_state));
+    let _server = Arbiter::start(move |ctx: &mut Context<_>| weather::WebWorker::new(_state));
     let forecast_addr = _server.recipient();
     {
         state.write().unwrap().addr = Mutex::new(Some(forecast_addr));
@@ -267,7 +235,7 @@ fn main() {
     })
     .bind(format!("0.0.0.0:{}", get_server_port()))
     .unwrap()
-    .workers(1)
+    .workers(8)
     .shutdown_timeout(1)
     .start();
 

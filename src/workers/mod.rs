@@ -32,18 +32,18 @@ pub struct CustomError {
     msg: String,
 }
 
-pub struct WeatherInquirer {
+pub struct WebWorker {
     pub app_state: AppStateType,
     pub last_response: Option<ApiResponse>,
     pub last_subscriber_update: i64,
     pub viber: viber::Viber,
 }
 
-impl WeatherInquirer {
-    pub fn new(app_state: AppStateType) -> WeatherInquirer {
+impl WebWorker {
+    pub fn new(app_state: AppStateType) -> WebWorker {
         let api = app_state.read().unwrap().config.viber_api_key.clone().unwrap();
         let admin = app_state.read().unwrap().config.admin_id.clone().unwrap();
-        WeatherInquirer {
+        WebWorker {
             app_state,
             last_response: None,
             last_subscriber_update: 0,
@@ -52,7 +52,7 @@ impl WeatherInquirer {
     }
 }
 
-impl WeatherInquirer {
+impl WebWorker {
     fn is_outdated(&self) -> Result<bool, failure::Error> {
         match self.last_response {
             None => Ok(true),
@@ -85,7 +85,7 @@ impl WeatherInquirer {
 
     pub fn download_image(&self, name: &str) -> Result<(), actix_web::error::Error> {
         client::get(format!(
-            "{}weather/kiev/{}",
+            "{}workers/kiev/{}",
             self.app_state.read().unwrap().config.domain_root_url.as_ref().unwrap(),
             name
         ))
@@ -98,7 +98,7 @@ impl WeatherInquirer {
                 if response.status().is_success() {
                     let mut file = File::create(format!("static/{}", name))?;
                     file.write_all(&data.to_vec()).map_err(|e| {
-                        error::ErrorInternalServerError("Failed to write weather image.")
+                        error::ErrorInternalServerError("Failed to write workers image.")
                     })
                 } else {
                     Ok(())
@@ -162,7 +162,7 @@ impl WeatherInquirer {
                 .lang(Lang::Ukranian)
                 .units(Units::UK)
                 .build();
-        info!("Requesting weather forecast");
+        info!("Requesting workers forecast");
         let mut forecast_response = api_client.get_forecast(forecast_request)?;
         if !forecast_response.status().is_success() {
             let mut body = String::new();
@@ -199,7 +199,7 @@ impl WeatherInquirer {
             let mut runner = &mut self.app_state.write().unwrap().last_text_broadcast;
             //16-20 UTC+2
             runner.daily(14, 20, &mut || {
-                debug!("Trying to broadcast weather");
+                debug!("Trying to broadcast workers");
                 self.send_forecast_for_tomorrow(&self.viber.admin_id).is_ok()
             });
         }
@@ -282,7 +282,7 @@ impl WeatherInquirer {
         use common::get_default_keyboard;
         let day = self.tomorrow()?;
 
-        let msg = WeatherInquirer::format_forecast(day)?;
+        let msg = WebWorker::format_forecast(day)?;
         self.viber.send_text_to(
             msg.as_str(),
             to,

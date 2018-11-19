@@ -18,7 +18,7 @@ use viber::messages::CallbackMessage;
 use viber::raw;
 use std::borrow::BorrowMut;
 use common::messages::{ WorkerUnit };
-use weather::WeatherInquirer;
+use weather::WebWorker;
 use actix::Recipient;
 use actix_web::http::StatusCode;
 use failure::Fail;
@@ -145,11 +145,20 @@ pub fn acc_data(
         .responder()
 }
 
-pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error>  {
+pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>>  {
+    use futures::{
+        future::{
+            ok as fut_ok,
+            err as fut_err
+        },
+        Future
+    };
     debug!("{:?}", req.headers());
+
     let code = AuthorizationCode::new(req.query().get("code").unwrap().to_string());
-    let state: &AppStateType = req.state();
+
     let token = {
+        let state: &AppStateType = req.state();
         let st = state.read().unwrap();
         let client = st.auth_client.as_ref().unwrap();
         debug!("{:?}", req.query().get("code").unwrap().to_string());
@@ -159,46 +168,14 @@ pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Err
     };
     if token.is_err() {
         debug!("token error");
-        return Err(actix_web::error::ErrorUnauthorized("could not exchange token"));
+        return fut_err(actix_web::error::ErrorUnauthorized("could not exchange token")).responder();
     }
     debug!("token: {}", &token.as_ref().unwrap().access_token().secret());
     let resp = reqwest::get(&format!("https://www.googleapis.com/userinfo/v2/me?access_token={}", token.unwrap().access_token().secret())).unwrap();
     let json: GoogleProfile = serde_json::from_reader(resp).unwrap();
-   /* let ssl_conn = SslConnector::builder(SslMethod::tls()).unwrap().build();
-    let conn = actix_web::client::ClientConnector::with_connector(ssl_conn);
 
-    let json = actix_web::client::get(&format!("https://www.googleapis.com/userinfo/v2/me?access_token={}", token.unwrap().access_token().secret()))
-        .with_connector(conn.start())
-        .timeout(Duration::new(30, 0))
-        .finish()
-        .unwrap()
-        .send()
-        .from_err::<actix_web::error::Error>()
-        .and_then(|response|{
-            debug!("response ok: {:?}", response.status());
-            response.body()
-                .map_err(|e| {
-                    debug!("error {:?}", e);
-                    e
-                })
-                .from_err()
-                .and_then(|bytes|{
-                    debug!("body ok");
-                let json: GoogleProfile = serde_json::from_slice(&bytes).map_err(|e| {
-                    debug!("parser error");
-                    actix_web::error::PayloadError::EncodingCorrupted
-                }).map_err(|e| {
-                    debug!("error {:?}", e);
-                    e
-                })?;
-                    debug!("{:?}", json);
-
-                    Ok(json)
-            })
-        }).wait().expect("error requesting profile info");
-*/
     req.remember(json.email.unwrap());
-    Ok(HttpResponse::Ok().content_type("text/html").body("logged in"))
+    fut_ok(HttpResponse::Ok().content_type("text/html").body("logged in")).responder()
 }
 
 pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
