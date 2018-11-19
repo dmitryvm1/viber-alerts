@@ -6,7 +6,7 @@ use futures::Future;
 use serde_json;
 // use serde_json::*;
 use failure;
-use weather::CustomError;
+use workers::CustomError;
 
 pub mod types;
 

@@ -1,7 +1,9 @@
 use oauth2::basic::BasicClient;
+use oauth2::prelude::*;
+use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
+             TokenUrl};
 use config;
 use url::Url;
-use actix_web::Scope;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GoogleProfile {
@@ -41,9 +43,9 @@ pub fn prepare_google_auth(config: &config::Config) -> BasicClient {
         auth_url,
         Some(token_url)
     )
-        .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.profile"))
-        .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.email"))
-        .add_scope(Scope::new("https://www.googleapis.com/auth/plus.me"))
+        .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.profile".to_owned()))
+        .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.email".to_owned()))
+        .add_scope(Scope::new("https://www.googleapis.com/auth/plus.me".to_owned()))
         .set_redirect_url(
             RedirectUrl::new(
                 Url::parse(&format!("{}api/google_oauth/", &config.domain_root_url.clone().unwrap()))

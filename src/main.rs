@@ -30,21 +30,17 @@ extern crate reqwest;
 extern crate tokio_openssl;
 
 use url::Url;
-use oauth2::basic::BasicClient;
-use oauth2::prelude::*;
-use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
-             TokenUrl};
+
 use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{http, middleware, App};
 use std::sync::Arc;
-use weather::*;
+use workers::*;
 // use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use actix::{Actor, Arbiter, AsyncContext, Context, Running};
 use actix_web::server::HttpServer;
 use actix_web::*;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
-use futures::{Future, Stream};
 use std::env;
 use std::sync::Mutex;
 use std::sync::RwLock;
@@ -54,6 +50,7 @@ use actix::Recipient;
 use actix::Message;
 use viber::messages;
 use api::auth::prepare_google_auth;
+use oauth2::basic::BasicClient;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -65,7 +62,7 @@ pub mod models;
 pub mod scheduler;
 pub mod schema;
 pub mod viber;
-pub mod weather;
+pub mod workers;
 
 // Interval between the task executions where all the notification/alert logic happens.
 #[cfg(debug_assertions)]
@@ -129,7 +126,7 @@ impl Handler<WorkerUnit> for WebWorker {
                 debug!("handling tomorrow forecast");
                 self.send_forecast_for_tomorrow(&user_id).map_err(|_| {
                     error!("Can't send forecast for tomorrow to {}", &user_id);
-                });
+                }).expect("send forecast fail");
             },
             _ => { }
         };
@@ -177,12 +174,10 @@ fn get_server_port() -> u16 {
 
 fn main() {
     use std::borrow::BorrowMut;
-
     env::set_var("RUST_LOG", "actix_web=error, viber_alerts=info");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
     let sys = actix::System::new(APP_NAME);
-
     let mut privkey_path = config::Config::get_config_dir(APP_NAME);
     let mut fullchain_path = privkey_path.clone();
     privkey_path.push("privkey.pem");
@@ -205,7 +200,7 @@ fn main() {
     let mut state = Arc::new(RwLock::new(AppState::new(&config, pool)));
     let _state = state.clone();
     state.write().unwrap().auth_client = Some(prepare_google_auth(&config));
-    let _server = Arbiter::start(move |ctx: &mut Context<_>| weather::WebWorker::new(_state));
+    let _server = Arbiter::start(move |ctx: &mut Context<_>| workers::WebWorker::new(_state));
     let forecast_addr = _server.recipient();
     {
         state.write().unwrap().addr = Mutex::new(Some(forecast_addr));
@@ -221,8 +216,8 @@ fn main() {
                     .secure(false),
             ))
             .handler("/api/static", fs::StaticFiles::new("static/").unwrap())
-            .resource("/login", |r| r.method(http::Method::POST).with(api::login))
-            .resource("/logout", |r| r.f(api::logout))
+            .resource("/api/login", |r| r.method(http::Method::POST).with(api::login))
+            .resource("/api/logout", |r| r.f(api::logout))
             .resource("/api/google_oauth/", |r| r.f(api::google_oauth))
             .resource("/", |r| r.f(api::index))
             .resource("/api/", |r| r.f(api::index))

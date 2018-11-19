@@ -1,4 +1,3 @@
-
 use actix_web::middleware::identity::RequestIdentity;
 use actix_web::*;
 use bitcoin;
@@ -18,7 +17,7 @@ use viber::messages::CallbackMessage;
 use viber::raw;
 use std::borrow::BorrowMut;
 use common::messages::{ WorkerUnit };
-use weather::WebWorker;
+use workers::WebWorker;
 use actix::Recipient;
 use actix_web::http::StatusCode;
 use failure::Fail;
@@ -150,32 +149,27 @@ pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResp
         future::{
             ok as fut_ok,
             err as fut_err
-        },
-        Future
+        }
     };
-    debug!("{:?}", req.headers());
-
     let code = AuthorizationCode::new(req.query().get("code").unwrap().to_string());
-
     let token = {
         let state: &AppStateType = req.state();
         let st = state.read().unwrap();
         let client = st.auth_client.as_ref().unwrap();
-        debug!("{:?}", req.query().get("code").unwrap().to_string());
         client.exchange_code(code).map_err(|e|{
             actix_web::error::ErrorInternalServerError(e)
         })
     };
     if token.is_err() {
-        debug!("token error");
         return fut_err(actix_web::error::ErrorUnauthorized("could not exchange token")).responder();
     }
-    debug!("token: {}", &token.as_ref().unwrap().access_token().secret());
-    let resp = reqwest::get(&format!("https://www.googleapis.com/userinfo/v2/me?access_token={}", token.unwrap().access_token().secret())).unwrap();
-    let json: GoogleProfile = serde_json::from_reader(resp).unwrap();
-
-    req.remember(json.email.unwrap());
-    fut_ok(HttpResponse::Ok().content_type("text/html").body("logged in")).responder()
+    let resp = reqwest::get(&format!("https://www.googleapis.com/userinfo/v2/me?access_token={}", token.unwrap().access_token().secret()));
+    if !resp.is_ok() {
+        return fut_err(actix_web::error::ErrorUnauthorized("Could not get user info.")).responder();
+    }
+    let json: GoogleProfile = serde_json::from_reader(resp.unwrap()).expect("bad gauth response");
+    req.remember(json.email.expect("no email"));
+    fut_ok(HttpResponse::Found().header("location", "/").finish()).responder()
 }
 
 pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
