@@ -41,8 +41,8 @@ pub struct WebWorker {
 
 impl WebWorker {
     pub fn new(app_state: AppStateType) -> WebWorker {
-        let api = app_state.read().unwrap().config.viber_api_key.clone().unwrap();
-        let admin = app_state.read().unwrap().config.admin_id.clone().unwrap();
+        let api = app_state.config.viber_api_key.clone().unwrap();
+        let admin = app_state.config.admin_id.clone().unwrap();
         WebWorker {
             app_state,
             last_response: None,
@@ -86,7 +86,7 @@ impl WebWorker {
     pub fn download_image(&self, name: &str) -> Result<(), actix_web::error::Error> {
         client::get(format!(
             "{}workers/kiev/{}",
-            self.app_state.read().unwrap().config.domain_root_url.as_ref().unwrap(),
+            self.app_state.config.domain_root_url.as_ref().unwrap(),
             name
         ))
         .finish()
@@ -148,7 +148,7 @@ impl WebWorker {
     }
 
     fn inquire(&self) -> Result<ApiResponse, failure::Error> {
-        let config = &self.app_state.read().unwrap().config;
+        let config = &self.app_state.config;
         let api_key = &config.dark_sky_api_key;
         let reqwest_client = reqwest::Client::new();
         let api_client = forecast::ApiClient::new(&reqwest_client);
@@ -196,7 +196,7 @@ impl WebWorker {
 
     pub fn try_broadcast(&mut self) {
         {
-            let mut runner = &mut self.app_state.write().unwrap().last_text_broadcast;
+            let mut runner = &mut self.app_state.last_text_broadcast.write().unwrap();
             //16-20 UTC+2
             runner.daily(14, 20, &mut || {
                 debug!("Trying to broadcast workers");
@@ -204,7 +204,7 @@ impl WebWorker {
             });
         }
         {
-            let mut runner = &mut self.app_state.write().unwrap().last_btc_update;
+            let mut runner = &mut self.app_state.last_btc_update.write().unwrap();
             runner.daily(3, 6, &mut || {
                 info!("btc price daily");
                 self.send_btc_price(&self.viber.admin_id);
@@ -223,12 +223,12 @@ impl WebWorker {
         if path.exists() {
             let url = format!(
                 "{}api/static/{}",
-                self.app_state.read().unwrap().config.hosting_root_url.clone().unwrap(),
+                self.app_state.config.hosting_root_url.clone().unwrap(),
                 &name
             );
             let thumb_url = format!(
                 "{}api/static/{}",
-                self.app_state.read().unwrap().config.hosting_root_url.clone().unwrap(),
+                self.app_state.config.hosting_root_url.clone().unwrap(),
                 &thumb
             );
             self.viber

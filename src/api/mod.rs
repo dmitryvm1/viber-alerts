@@ -38,10 +38,10 @@ pub fn list(
 ) -> Result<HttpResponse, Error> {
     let mut ctx = tera::Context::new();
     ctx.insert("text", &"Welcome!".to_owned());
-    let ts = state.read().unwrap().last_text_broadcast.last_success;
+    let ts = state.last_text_broadcast.read().unwrap().last_success;
     ctx.insert("last_broadcast", &chrono::Utc.timestamp(ts, 0).to_rfc2822());
-    ctx.insert("members", &state.read().unwrap().subscribers);
-    let html = state.read().unwrap().template.render("index.html", &ctx).map_err(|e| {
+    ctx.insert("members", &state.subscribers);
+    let html = state.template.render("index.html", &ctx).map_err(|e| {
         error!("Template error! {:?}", e);
         error::ErrorInternalServerError("Template error")
     })?;
@@ -53,9 +53,12 @@ pub fn viber_webhook(
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
     use std::borrow::Cow;
 
-    let state = req.state().read().unwrap();
-    let addr:Option<Recipient<WorkerUnit>> = state.addr.lock().unwrap().clone();
-    let key = req.state().read().unwrap().config.viber_api_key.clone().unwrap();
+    let state = req.state();
+    let addr:Recipient<WorkerUnit> = {
+        let mut temp = state.addr.lock().unwrap();
+        temp.get_mut().as_ref().unwrap().clone()
+    };
+    let key = req.state().config.viber_api_key.clone().unwrap();
     let kb = Some(get_default_keyboard());
 
     req.payload()
@@ -84,11 +87,11 @@ pub fn viber_webhook(
                             let message = msg.message.as_ref().unwrap();
                             match message.text.as_ref() {
                                 "bitcoin" => {
-                                    addr.unwrap().do_send(WorkerUnit::BTCPrice { user_id: user.to_string() });
+                                    addr.do_send(WorkerUnit::BTCPrice { user_id: user.to_string() });
                                 },
                                 "forecast_kiev_tomorrow" => {
                                     info!("message parsed {:?}", msg);
-                                    addr.unwrap().do_send(WorkerUnit::TomorrowForecast { user_id: user.to_string() });
+                                    addr.do_send(WorkerUnit::TomorrowForecast { user_id: user.to_string() });
                                 }
 
                                 _ => {}
@@ -111,7 +114,7 @@ pub fn send_message(
     req: &HttpRequest<AppStateType>,
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
     let state = req.state();
-    let config = &state.read().unwrap().config;
+    let config = &state.config;
     let viber_api_key = &config.viber_api_key;
     let key = &viber_api_key.as_ref();
     super::viber::raw::send_text_message(
@@ -132,7 +135,7 @@ pub fn acc_data(
     req: &HttpRequest<AppStateType>,
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
     let state = req.state();
-    let config: &super::config::Config = &state.read().unwrap().config;
+    let config: &super::config::Config = &state.config;
     super::viber::raw::get_account_data(config.viber_api_key.as_ref().unwrap())
         .from_err()
         .and_then(|response| {
@@ -154,9 +157,9 @@ pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResp
     let code = AuthorizationCode::new(req.query().get("code").unwrap().to_string());
     let token = {
         let state: &AppStateType = req.state();
-        let st = state.read().unwrap();
-        let client = st.auth_client.as_ref().unwrap();
-        client.exchange_code(code).map_err(|e|{
+        let st = state;
+        let mut client = st.auth_client.lock().unwrap();
+        client.get_mut().as_ref().unwrap().exchange_code(code).map_err(|e|{
             actix_web::error::ErrorInternalServerError(e)
         })
     };
@@ -181,12 +184,12 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")
         })?;*/
-        let st = state.read().unwrap();
-        let client = st.auth_client.as_ref().unwrap();
-        let (authorize_url, csrf_state) = client.authorize_url(CsrfToken::new_random);
+        let st = state;
+        let mut client = st.auth_client.lock().unwrap();
+        let (authorize_url, csrf_state) = client.get_mut().as_ref().unwrap().authorize_url(CsrfToken::new_random);
         debug!("{:?}", authorize_url);
         ctx.insert("auth_url", &authorize_url.to_string());
-        let html = state.read().unwrap().template.render("oauth_login.html", &ctx).map_err(|e| {
+        let html = state.template.render("oauth_login.html", &ctx).map_err(|e| {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")
         })?;
@@ -194,10 +197,10 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
     } else {
         let mut ctx = tera::Context::new();
         ctx.insert("text", &"Welcome!".to_owned());
-        let ts = state.read().unwrap().last_text_broadcast.last_success;
+        let ts = state.last_text_broadcast.read().unwrap().last_success;
         ctx.insert("last_broadcast", &chrono::Utc.timestamp(ts, 0).to_rfc2822());
-        ctx.insert("members", &state.read().unwrap().subscribers);
-        let html = state.read().unwrap().template.render("index.html", &ctx).map_err(|e| {
+        ctx.insert("members", &state.subscribers);
+        let html = state.template.render("index.html", &ctx).map_err(|e| {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")
         })?;
@@ -212,7 +215,7 @@ pub struct LoginParams {
 }
 
 pub fn users(req: &HttpRequest<AppStateType>) -> HttpResponse {
-    let pool = &req.state().read().unwrap().pool;
+    let pool = &req.state().pool;
     let users = User::all(pool.get().unwrap().deref()).unwrap();
     HttpResponse::Ok().body(format!("{:?}", users))
 }

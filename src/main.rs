@@ -51,6 +51,7 @@ use actix::Message;
 use viber::messages;
 use api::auth::prepare_google_auth;
 use oauth2::basic::BasicClient;
+use std::cell::Cell;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -70,16 +71,16 @@ static QUERY_INTERVAL: u64 = 6;
 #[cfg(not(debug_assertions))]
 static QUERY_INTERVAL: u64 = 60;
 
-pub type AppStateType = Arc<RwLock<AppState>>;
+pub type AppStateType = Arc<AppState>;
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 
 impl Actor for WebWorker {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
         {
-            let mut state = self.app_state.write().unwrap();
+            let mut state = &self.app_state;
             if  self.viber
-                .update_subscribers(&mut state.subscribers)
+                .update_subscribers(&mut state.subscribers.write().unwrap())
                 .is_err()
             {
                 warn!("Failed to read subscribers.");
@@ -94,10 +95,10 @@ impl Actor for WebWorker {
                     }
                     Ok(success) => {
                         if success {
-                            let mut state = _t.app_state.write().unwrap();
+                            let mut state = &_t.app_state;
                             _t
                                 .viber
-                                .update_subscribers(&mut state.subscribers)
+                                .update_subscribers(&mut state.subscribers.write().unwrap())
                                 .map_err(|e| {
                                     warn!("Failed to read subscribers. {:?}", e);
                                 });
@@ -135,13 +136,13 @@ impl Handler<WorkerUnit> for WebWorker {
 }
 
 pub struct AppState {
-    pub addr: Mutex<Option<Recipient<WorkerUnit>>>,
+    pub addr: Mutex<Cell<Option<Recipient<WorkerUnit>>>>,
     pub config: config::Config,
-    pub subscribers: Vec<messages::Member>,
-    pub last_text_broadcast: scheduler::TryTillSuccess,
-    pub last_btc_update: scheduler::TryTillSuccess,
+    pub subscribers: RwLock<Vec<messages::Member>>,
+    pub last_text_broadcast: RwLock<scheduler::TryTillSuccess>,
+    pub last_btc_update: RwLock<scheduler::TryTillSuccess>,
     pub pool: PgPool,
-    pub auth_client: Option<BasicClient>,
+    pub auth_client: Mutex<Cell<Option<BasicClient>>>,
     template: tera::Tera, // <- store tera template in application state
 }
 
@@ -153,13 +154,13 @@ impl AppState {
         let tera = tera::Tera::new("templates/**/*").expect("Failed to load templates");
         AppState {
             config: (*config).clone(),
-            subscribers: Vec::new(),
-            last_text_broadcast: scheduler::TryTillSuccess::new(),
-            last_btc_update: scheduler::TryTillSuccess::new(),
+            subscribers: RwLock::new(Vec::new()),
+            last_text_broadcast: RwLock::new(scheduler::TryTillSuccess::new()),
+            last_btc_update: RwLock::new(scheduler::TryTillSuccess::new()),
             template: tera,
             pool,
-            auth_client: None,
-            addr: Mutex::new(None)
+            auth_client: Mutex::new(Cell::new(None)),
+            addr: Mutex::new(Cell::new(None)),
         }
     }
 }
@@ -197,13 +198,15 @@ fn main() {
     let pool = r2d2::Pool::builder()
         .build(manager)
         .expect("Failed to create pool.");
-    let mut state = Arc::new(RwLock::new(AppState::new(&config, pool)));
+    let state = Arc::new(AppState::new(&config, pool));
+    let oauth_client = prepare_google_auth(&config);
+    state.auth_client.lock().unwrap().set(Some(oauth_client));
     let _state = state.clone();
-    state.write().unwrap().auth_client = Some(prepare_google_auth(&config));
+
     let _server = Arbiter::start(move |ctx: &mut Context<_>| workers::WebWorker::new(_state));
     let forecast_addr = _server.recipient();
     {
-        state.write().unwrap().addr = Mutex::new(Some(forecast_addr));
+        state.addr.lock().unwrap().set(Some(forecast_addr));
     }
 
 
