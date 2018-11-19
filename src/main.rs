@@ -216,7 +216,7 @@ fn main() {
                     .secure(false),
             ))
             .handler("/api/static", fs::StaticFiles::new("static/").unwrap())
-            .resource("/api/login", |r| r.method(http::Method::POST).with(api::login))
+      //      .resource("/api/login", |r| r.method(http::Method::POST).with(api::login))
             .resource("/api/logout", |r| r.f(api::logout))
             .resource("/api/google_oauth/", |r| r.f(api::google_oauth))
             .resource("/", |r| r.f(api::index))

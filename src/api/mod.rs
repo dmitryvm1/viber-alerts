@@ -169,7 +169,7 @@ pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResp
     }
     let json: GoogleProfile = serde_json::from_reader(resp.unwrap()).expect("bad gauth response");
     req.remember(json.email.expect("no email"));
-    fut_ok(HttpResponse::Found().header("location", "/").finish()).responder()
+    fut_ok(HttpResponse::Found().header("location", "/api/").finish()).responder()
 }
 
 pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
@@ -211,23 +211,6 @@ pub struct LoginParams {
     password: String,
 }
 
-pub fn login((req, params): (HttpRequest<AppStateType>, Form<LoginParams>)) -> HttpResponse {
-    {
-        let pool = &req.state().read().unwrap().pool;
-        let new_post = NewPost {
-            body: "test",
-            title: "title",
-        };
-        Post::insert(new_post, pool.get().unwrap().deref()).unwrap_or_else(|e| {
-            error!("Failed to insert post");
-            0
-        });
-    }
-
-    req.remember("user1".to_owned());
-    HttpResponse::Found().header("location", "/").finish()
-}
-
 pub fn users(req: &HttpRequest<AppStateType>) -> HttpResponse {
     let pool = &req.state().read().unwrap().pool;
     let users = Post::all(pool.get().unwrap().deref()).unwrap();
@@ -236,5 +219,5 @@ pub fn users(req: &HttpRequest<AppStateType>) -> HttpResponse {
 
 pub fn logout(req: &HttpRequest<AppStateType>) -> HttpResponse {
     req.forget();
-    HttpResponse::Found().header("location", "/").finish()
+    HttpResponse::Found().header("location", "/api/").finish()
 }
