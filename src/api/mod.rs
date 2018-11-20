@@ -188,8 +188,9 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
         let mut client = st.auth_client.lock().unwrap();
         let (authorize_url, csrf_state) = client.get_mut().as_ref().unwrap().authorize_url(CsrfToken::new_random);
         debug!("{:?}", authorize_url);
+        ctx.insert("app_name", &"Viber Alerts!".to_owned());
         ctx.insert("auth_url", &authorize_url.to_string());
-        let html = state.template.render("oauth_login.html", &ctx).map_err(|e| {
+        let html = state.template.render("login.html", &ctx).map_err(|e| {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")
         })?;

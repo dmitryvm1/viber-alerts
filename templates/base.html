@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    {% block head %}
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>{{app_name}}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/api/static/css/main.css">
+    <link rel="stylesheet" href="/api/static/css/feather.css">
+    {% endblock head %}
+</head>
+<body>
+<header>
+    {% block header %}
+    <nav id="menu">
+        <a href="" aria-label="Menu" title="Menu"><i class="icon icon-menu"></i></a>
+    </nav>
+    <div id="content">
+        <nav>
+            <a href="" class="title">
+                <p>{{ app_name }}</p>
+            </a>
+            <hr>
+        </nav>
+        <nav>
+            <a href="">
+                <i class="icon icon-log-in"></i>
+                <span class="mobile-label">Log In</span>
+            </a>
+            <a href="">
+                <i class="icon icon-user-plus"></i>
+                <span class="mobile-label">Register</span>
+            </a>
+        </nav>
+    </div>
+    {% endblock header %}
+</header>
+<main>
+    {% block main %}
+    {% endblock main %}
+</main>
+{% block scripts %}
+<script src="/api/static/js/menu.js"></script>
+{% endblock scripts %}
+</body>
+</html>
