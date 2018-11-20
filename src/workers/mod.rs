@@ -14,6 +14,7 @@ use viber;
 use common::messages::WorkerUnit;
 use bitcoin;
 use common;
+use ServiceQuota;
 
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
@@ -75,7 +76,7 @@ impl WebWorker {
     pub fn inquire_if_needed(&mut self) -> Result<bool, failure::Error> {
         if self.is_outdated().ok().unwrap_or(true) {
             self.last_response = self
-                .inquire()
+                .inquire(LATITUDE, LONGITUDE)
                 .map_err(|e| error!("Error while requesting forecast: {:?}", e.as_fail()))
                 .ok();
             return Ok(true);
@@ -134,8 +135,8 @@ impl WebWorker {
         });
     }
 
-    fn tomorrow(&self) -> Result<&DataPoint, failure::Error> {
-        if let Some(ref lr) = self.last_response {
+    fn tomorrow<'a>(&self, forecast: &'a Option<ApiResponse>) -> Result<&'a DataPoint, failure::Error> {
+        if let Some(ref lr) = forecast {
             let daily = lr.daily.as_ref().ok_or(JsonError::MissingField {
                 name: "daily".to_owned(),
             })?;
@@ -147,7 +148,18 @@ impl WebWorker {
         }))
     }
 
-    fn inquire(&self) -> Result<ApiResponse, failure::Error> {
+    pub fn get_user_quota(&self, user_id: &str) -> ServiceQuota {
+        let quota = &self.app_state.quota.read();
+        let user_quota = quota.as_ref().unwrap().get(user_id).unwrap();
+        (*user_quota).clone()
+    }
+
+    pub fn set_user_quota(&self, user_id: &str, user_quota: ServiceQuota) {
+        let mut quota = self.app_state.quota.write();
+        quota.as_mut().unwrap().insert(user_id.to_owned(), user_quota);
+    }
+
+    fn inquire(&self, lat: f64, lon: f64) -> Result<ApiResponse, failure::Error> {
         let config = &self.app_state.config;
         let api_key = &config.dark_sky_api_key;
         let reqwest_client = reqwest::Client::new();
@@ -155,7 +167,7 @@ impl WebWorker {
         let mut blocks = vec![ExcludeBlock::Alerts];
 
         let forecast_request =
-            ForecastRequestBuilder::new(api_key.as_ref().unwrap().as_str(), LATITUDE, LONGITUDE)
+            ForecastRequestBuilder::new(api_key.as_ref().unwrap().as_str(), lat, lon)
                 .exclude_block(ExcludeBlock::Hourly)
                 .exclude_blocks(&mut blocks)
                 .extend(ExtendBy::Hourly)
@@ -200,7 +212,7 @@ impl WebWorker {
             //16-20 UTC+2
             runner.daily(14, 20, &mut || {
                 debug!("Trying to broadcast workers");
-                self.send_forecast_for_tomorrow(&self.viber.admin_id).is_ok()
+                self.send_forecast_for_tomorrow(&self.last_response, &self.viber.admin_id).is_ok()
             });
         }
         {
@@ -211,6 +223,11 @@ impl WebWorker {
                 true
             });
         }
+    }
+
+    pub fn immediate_forecast_for_tomorrow(&self, user_id: &str, lat: f64, lon: f64) -> Result<(), failure::Error> {
+        let forecast = self.inquire(lat, lon).ok();
+        self.send_forecast_for_tomorrow(&forecast, user_id)
     }
 
     pub fn send_image(&self) -> Result<(), failure::Error> {
@@ -278,10 +295,19 @@ impl WebWorker {
                               )?, &precip_formatted))
     }
 
-    pub fn send_forecast_for_tomorrow(&self, to: &str) -> Result<(), failure::Error> {
+    pub fn send_forecast_for_tomorrow(&self, forecast: &Option<ApiResponse>, to: &str) -> Result<(), failure::Error> {
+        let mut quota = self.get_user_quota(to);
+        if quota.weather_count == 0 {
+            return self.viber.send_text_to(
+                "Max request count exceeded.",
+                to,
+                Some(get_default_keyboard()),
+            );
+        }
+        quota.weather_count -= 1;
+        self.set_user_quota(to, quota);
         use common::get_default_keyboard;
-        let day = self.tomorrow()?;
-
+        let day = self.tomorrow(forecast)?;
         let msg = WebWorker::format_forecast(day)?;
         self.viber.send_text_to(
             msg.as_str(),

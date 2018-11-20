@@ -84,8 +84,11 @@ pub fn viber_webhook(
                         },
 
                         "message" => {
-                            handle_user_message(&msg);
-
+                            info!("message parsed {:?}", msg);
+                            match handle_user_message(&msg) {
+                                Some(m) => { addr.do_send(m); },
+                                None => { }
+                            };
                         },
                         _ => {}
                     }
@@ -103,13 +106,13 @@ pub fn viber_webhook(
 fn handle_user_message(msg: &CallbackMessage) -> Option<WorkerUnit> {
     let user = msg.sender.as_ref().unwrap().id.as_ref().unwrap();
     let message = msg.message.as_ref().unwrap();
-    let actor_message = match msg._type.as_ref().unwrap().as_ref() {
+    let actor_message = match msg.message.as_ref().unwrap()._type.as_ref() {
         "location" => {
             let location = msg.message.as_ref().unwrap().location.as_ref().unwrap();
             Some(WorkerUnit::ImmediateTomorrowForecast { user_id: user.to_string(), lat: location.lat, lon: location.lon })
         },
         "text" => {
-            match message.text.as_ref() {
+            match message.text.as_ref().unwrap().as_ref() {
                 "bitcoin" => {
                     Some(WorkerUnit::BTCPrice { user_id: user.to_string() })
                 },

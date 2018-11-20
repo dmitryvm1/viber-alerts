@@ -28,7 +28,7 @@ pub struct Sender<'a> {
 pub struct ViberMessage<'a> {
     #[serde(rename = "type")]
     pub _type: Cow<'a, str>,
-    pub text: Cow<'a, str>,
+    pub text: Option<Cow<'a, str>>,
     pub media: Option<Cow<'a, str>>,
     pub location: Option<Location>,
     pub tracking_data: Option<Cow<'a, str>>,

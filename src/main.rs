@@ -52,6 +52,8 @@ use viber::messages;
 use api::auth::prepare_google_auth;
 use oauth2::basic::BasicClient;
 use std::cell::Cell;
+use std::collections::HashMap;
+use viber::messages::Member;
 
 static APP_NAME: &str = "viber_alerts";
 
@@ -73,6 +75,21 @@ static QUERY_INTERVAL: u64 = 60;
 
 pub type AppStateType = Arc<AppState>;
 type PgPool = Pool<ConnectionManager<PgConnection>>;
+
+#[derive(Clone)]
+pub struct ServiceQuota {
+    pub weather_count: u16,
+    pub btc_count: u16
+}
+
+impl Default for ServiceQuota {
+    fn default() -> Self {
+        ServiceQuota {
+            weather_count: 22,
+            btc_count: 12
+        }
+    }
+}
 
 impl Actor for WebWorker {
     type Context = Context<Self>;
@@ -102,10 +119,18 @@ impl Actor for WebWorker {
                                 .map_err(|e| {
                                     warn!("Failed to read subscribers. {:?}", e);
                                 });
+                            let mut quota = _t.app_state.quota.write().unwrap();
+                            quota.clear();
+                            let members = _t.app_state.subscribers.read();
+                            let iter:&Vec<Member> = members.as_ref().unwrap().as_ref();
+                            for ref subscriber in iter {
+                                quota.insert(subscriber.id.clone(), ServiceQuota::default());
+                            }
                         }
                     }
                 };
                 _t.try_broadcast();
+
             },
         );
     }
@@ -121,14 +146,28 @@ impl Handler<WorkerUnit> for WebWorker {
     fn handle(&mut self, msg: WorkerUnit, ctx: & mut Context<Self>) -> Self::Result {
         match msg {
             WorkerUnit::BTCPrice { user_id } => {
-                self.send_btc_price(&user_id);
+                let mut quota = self.get_user_quota(&user_id);
+                if quota.btc_count > 0 {
+                    self.send_btc_price(&user_id);
+                    quota.btc_count -= 1;
+                    debug!("sent btc price: {}", &quota.btc_count);
+                    self.set_user_quota(&user_id, quota);
+
+                } else {
+                    self.viber.send_text_to("Max request count exceeded.", &user_id, Some(common::get_default_keyboard()));
+                }
             },
             WorkerUnit::TomorrowForecast { user_id } => {
                 debug!("handling tomorrow forecast");
-                self.send_forecast_for_tomorrow(&user_id).map_err(|_| {
+                self.send_forecast_for_tomorrow( &self.last_response, &user_id).map_err(|_| {
                     error!("Can't send forecast for tomorrow to {}", &user_id);
-                }).expect("send forecast fail");
+                }).unwrap_or_default();
             },
+            WorkerUnit::ImmediateTomorrowForecast { user_id, lat, lon } => {
+                self.immediate_forecast_for_tomorrow(&user_id, lat, lon).map_err(|_| {
+                    error!("Can't send forecast for tomorrow to {}", &user_id);
+                }).unwrap_or_default();
+            }
             _ => { }
         };
         ()
@@ -142,6 +181,7 @@ pub struct AppState {
     pub last_text_broadcast: RwLock<scheduler::TryTillSuccess>,
     pub last_btc_update: RwLock<scheduler::TryTillSuccess>,
     pub pool: PgPool,
+    pub quota: RwLock<HashMap<String, ServiceQuota>>,
     pub auth_client: Mutex<Cell<Option<BasicClient>>>,
     template: tera::Tera, // <- store tera template in application state
 }
@@ -158,6 +198,7 @@ impl AppState {
             last_text_broadcast: RwLock::new(scheduler::TryTillSuccess::new()),
             last_btc_update: RwLock::new(scheduler::TryTillSuccess::new()),
             template: tera,
+            quota: RwLock::new(HashMap::new()),
             pool,
             auth_client: Mutex::new(Cell::new(None)),
             addr: Mutex::new(Cell::new(None)),
@@ -175,7 +216,7 @@ fn get_server_port() -> u16 {
 
 fn main() {
     use std::borrow::BorrowMut;
-    env::set_var("RUST_LOG", "actix_web=error, viber_alerts=info");
+    env::set_var("RUST_LOG", "viber_alerts=debug");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
     let sys = actix::System::new(APP_NAME);
