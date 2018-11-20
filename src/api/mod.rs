@@ -66,7 +66,7 @@ pub fn viber_webhook(
         .from_err()
         .and_then(move |body| {
             let cb_msg: Result<CallbackMessage, serde_json::Error> =
-                serde_json::from_slice(&body);
+                serde_json::from_slice::<CallbackMessage>(&body);
             info!("viber hook {:?}", cb_msg);
             match cb_msg {
                 Ok(ref msg) => {
@@ -82,20 +82,10 @@ pub fn viber_webhook(
                             )
                             .wait();
                         },
-                        "message" => {
-                            let user = msg.sender.as_ref().unwrap().id.as_ref().unwrap();
-                            let message = msg.message.as_ref().unwrap();
-                            match message.text.as_ref() {
-                                "bitcoin" => {
-                                    addr.do_send(WorkerUnit::BTCPrice { user_id: user.to_string() });
-                                },
-                                "forecast_kiev_tomorrow" => {
-                                    info!("message parsed {:?}", msg);
-                                    addr.do_send(WorkerUnit::TomorrowForecast { user_id: user.to_string() });
-                                }
 
-                                _ => {}
-                            }
+                        "message" => {
+                            handle_user_message(&msg);
+
                         },
                         _ => {}
                     }
@@ -108,6 +98,31 @@ pub fn viber_webhook(
             }
         })
         .responder()
+}
+
+fn handle_user_message(msg: &CallbackMessage) -> Option<WorkerUnit> {
+    let user = msg.sender.as_ref().unwrap().id.as_ref().unwrap();
+    let message = msg.message.as_ref().unwrap();
+    let actor_message = match msg._type.as_ref().unwrap().as_ref() {
+        "location" => {
+            let location = msg.message.as_ref().unwrap().location.as_ref().unwrap();
+            Some(WorkerUnit::ImmediateTomorrowForecast { user_id: user.to_string(), lat: location.lat, lon: location.lon })
+        },
+        "text" => {
+            match message.text.as_ref() {
+                "bitcoin" => {
+                    Some(WorkerUnit::BTCPrice { user_id: user.to_string() })
+                },
+                "forecast_kiev_tomorrow" => {
+                    info!("message parsed {:?}", msg);
+                    Some(WorkerUnit::TomorrowForecast { user_id: user.to_string() })
+                }
+                _ => None
+            }
+        },
+        _ => None
+    };
+    actor_message
 }
 
 pub fn send_message(

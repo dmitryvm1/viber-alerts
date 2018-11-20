@@ -2,8 +2,8 @@ use std::borrow::Cow;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Location {
-    lat: f64,
-    lon: f64,
+    pub lat: f64,
+    pub lon: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
