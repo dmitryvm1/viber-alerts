@@ -27,6 +27,17 @@ enum JsonError {
     ArrayIndex,
 }
 
+#[derive(Serialize, Deserialize)]
+struct Results {
+    pub formatted_address: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ReverseGeocoding {
+    pub results: Vec<Results>,
+    pub status: String,
+}
+
 #[derive(Debug, Fail)]
 #[fail(display = "Custom error: {}", msg)]
 pub struct CustomError {
@@ -212,7 +223,7 @@ impl WebWorker {
             //16-20 UTC+2
             runner.daily(14, 20, &mut || {
                 debug!("Trying to broadcast workers");
-                self.send_forecast_for_tomorrow(&self.last_response, &self.viber.admin_id).is_ok()
+                self.send_forecast_for_tomorrow(&self.last_response, &self.viber.admin_id, "").is_ok()
             });
         }
         {
@@ -227,7 +238,18 @@ impl WebWorker {
 
     pub fn immediate_forecast_for_tomorrow(&self, user_id: &str, lat: f64, lon: f64) -> Result<(), failure::Error> {
         let forecast = self.inquire(lat, lon).ok();
-        self.send_forecast_for_tomorrow(&forecast, user_id)
+        let mut address = self.get_address_by_location(lat, lon).unwrap_or("".to_owned());
+        address.push_str("\n");
+        self.send_forecast_for_tomorrow(&forecast, user_id, &address)
+    }
+
+    fn get_address_by_location(&self, lat: f64, lon: f64) -> Result<String, failure::Error> {
+        let key = self.app_state.config.google_maps_api_key.as_ref().unwrap();
+        let query = format!("https://maps.googleapis.com/maps/api/geocode/json?latlng={},{}&language=uk&key={}&result_type=political|country|administrative_area_level_1|administrative_area_level_2", lat, lon, key);
+        let reqwest_client = reqwest::Client::new();
+        let response = reqwest_client.get(&query).send()?;
+        let geocoding: ReverseGeocoding = serde_json::from_reader(response)?;
+        Ok(geocoding.results.first().unwrap().formatted_address.clone())
     }
 
     pub fn send_image(&self) -> Result<(), failure::Error> {
@@ -284,7 +306,7 @@ impl WebWorker {
         } else {
             format!(" \nОпади: {:?} з ймовірністю {:.2}%", precip, probability * 100.0)
         };
-        Ok(format!("Прогноз на завтра {}.{}:\n{}\nТемпература: {:?} - {:?}\n{}", dt.day(),
+        Ok(format!("Прогноз на завтра {}.{}:\n{}\nТемпература: від {:?}\u{2103} до {:?}\u{2103}\n{}", dt.day(),
                               dt.month(),
                 data_point.summary.clone().unwrap_or_default(),
                 data_point.temperature_low.ok_or(
@@ -295,7 +317,7 @@ impl WebWorker {
                               )?, &precip_formatted))
     }
 
-    pub fn send_forecast_for_tomorrow(&self, forecast: &Option<ApiResponse>, to: &str) -> Result<(), failure::Error> {
+    pub fn send_forecast_for_tomorrow(&self, forecast: &Option<ApiResponse>, to: &str, additional_text: &str) -> Result<(), failure::Error> {
         let mut quota = self.get_user_quota(to);
         if quota.weather_count == 0 {
             return self.viber.send_text_to(
@@ -310,7 +332,7 @@ impl WebWorker {
         let day = self.tomorrow(forecast)?;
         let msg = WebWorker::format_forecast(day)?;
         self.viber.send_text_to(
-            msg.as_str(),
+            &(additional_text.to_owned() + msg.as_str()),
             to,
             Some(get_default_keyboard()),
         )?;

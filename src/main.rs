@@ -159,7 +159,7 @@ impl Handler<WorkerUnit> for WebWorker {
             },
             WorkerUnit::TomorrowForecast { user_id } => {
                 debug!("handling tomorrow forecast");
-                self.send_forecast_for_tomorrow( &self.last_response, &user_id).map_err(|_| {
+                self.send_forecast_for_tomorrow( &self.last_response, &user_id, "").map_err(|_| {
                     error!("Can't send forecast for tomorrow to {}", &user_id);
                 }).unwrap_or_default();
             },
@@ -168,7 +168,9 @@ impl Handler<WorkerUnit> for WebWorker {
                     error!("Can't send forecast for tomorrow to {}", &user_id);
                 }).unwrap_or_default();
             }
-            _ => { }
+            WorkerUnit::UnknownCommand {user_id} => {
+                self.viber.send_text_to("Невідома команда.", &user_id, Some(common::get_default_keyboard()));
+            }
         };
         ()
     }

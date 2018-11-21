@@ -10,6 +10,7 @@ pub struct Config {
     pub database_url: Option<String>,
     pub google_client_id: Option<String>,
     pub google_client_secret: Option<String>,
+    pub google_maps_api_key: Option<String>
 }
 
 impl Config {
@@ -40,6 +41,7 @@ impl Config {
             database_url: std::env::var("DATABASE_URL").ok(),
             google_client_id: std::env::var("GOOGLE_CLIENT_ID").ok(),
             google_client_secret: std::env::var("GOOGLE_CLIENT_SECRET").ok(),
+            google_maps_api_key: std::env::var("GOOGLE_MAPS_API_KEY").ok(),
         }
     }
 

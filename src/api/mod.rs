@@ -85,13 +85,12 @@ pub fn viber_webhook(
 
                         "message" => {
                             info!("message parsed {:?}", msg);
-                            match handle_user_message(&msg) {
-                                Some(m) => { addr.do_send(m); },
-                                None => { }
-                            };
+                            let cmd = handle_user_message(&msg);
+                            addr.do_send(cmd).unwrap();
                         },
                         _ => {}
                     }
+                    info!("sending ok response");
                     Ok(HttpResponse::Ok().content_type("text/plain").body(""))
                 }
                 Err(e) => {
@@ -103,27 +102,27 @@ pub fn viber_webhook(
         .responder()
 }
 
-fn handle_user_message(msg: &CallbackMessage) -> Option<WorkerUnit> {
+fn handle_user_message(msg: &CallbackMessage) -> WorkerUnit {
     let user = msg.sender.as_ref().unwrap().id.as_ref().unwrap();
     let message = msg.message.as_ref().unwrap();
     let actor_message = match msg.message.as_ref().unwrap()._type.as_ref() {
         "location" => {
             let location = msg.message.as_ref().unwrap().location.as_ref().unwrap();
-            Some(WorkerUnit::ImmediateTomorrowForecast { user_id: user.to_string(), lat: location.lat, lon: location.lon })
+            WorkerUnit::ImmediateTomorrowForecast { user_id: user.to_string(), lat: location.lat, lon: location.lon }
         },
         "text" => {
             match message.text.as_ref().unwrap().as_ref() {
                 "bitcoin" => {
-                    Some(WorkerUnit::BTCPrice { user_id: user.to_string() })
+                    WorkerUnit::BTCPrice { user_id: user.to_string() }
                 },
                 "forecast_kiev_tomorrow" => {
                     info!("message parsed {:?}", msg);
-                    Some(WorkerUnit::TomorrowForecast { user_id: user.to_string() })
+                    WorkerUnit::TomorrowForecast { user_id: user.to_string() }
                 }
-                _ => None
+                _ => WorkerUnit::UnknownCommand { user_id: user.to_string() }
             }
         },
-        _ => None
+        _ => WorkerUnit::UnknownCommand { user_id: user.to_string() }
     };
     actor_message
 }

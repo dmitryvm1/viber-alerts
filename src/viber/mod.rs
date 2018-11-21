@@ -32,7 +32,6 @@ impl Viber {
                     let account_info: messages::AccountInfo = serde_json::from_slice(&data)?;
                     out.clear();
                     for member in account_info.members {
-                        info!("Member: {:?}", member);
                         out.push(member);
                     }
                     Ok(())
