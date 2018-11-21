@@ -169,7 +169,7 @@ impl Handler<WorkerUnit> for WebWorker {
                 }).unwrap_or_default();
             }
             WorkerUnit::UnknownCommand {user_id} => {
-                self.viber.send_text_to("Невідома команда.", &user_id, Some(common::get_default_keyboard()));
+                self.viber.send_text_to("Невідома команда. Відправте місцезнаходження, щоб дізнатися прогноз на завтра.", &user_id, Some(common::get_default_keyboard()));
             }
         };
         ()
