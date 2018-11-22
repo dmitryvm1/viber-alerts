@@ -30,7 +30,6 @@ extern crate reqwest;
 extern crate tokio_openssl;
 
 use url::Url;
-
 use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{http, middleware, App};
 use std::sync::Arc;
@@ -55,7 +54,7 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use viber::messages::Member;
 
-static APP_NAME: &str = "viber_alerts";
+
 
 pub mod api;
 pub mod bitcoin;
@@ -72,6 +71,7 @@ pub mod workers;
 static QUERY_INTERVAL: u64 = 6;
 #[cfg(not(debug_assertions))]
 static QUERY_INTERVAL: u64 = 60;
+static APP_NAME: &str = "viber_alerts";
 
 pub type AppStateType = Arc<AppState>;
 type PgPool = Pool<ConnectionManager<PgConnection>>;
@@ -103,34 +103,11 @@ impl Actor for WebWorker {
                 warn!("Failed to read subscribers.");
             };
         }
+
         ctx.run_interval(
             std::time::Duration::new(QUERY_INTERVAL, 0),
             |_t: &mut WebWorker, _ctx: &mut Context<Self>| {
-                match _t.inquire_if_needed() {
-                    Err(e) => {
-                        error!("Error inquiring workers forecast. {}", e.as_fail());
-                    }
-                    Ok(success) => {
-                        if success {
-                            let mut state = &_t.app_state;
-                            _t
-                                .viber
-                                .update_subscribers(&mut state.subscribers.write().unwrap())
-                                .map_err(|e| {
-                                    warn!("Failed to read subscribers. {:?}", e);
-                                });
-                            let mut quota = _t.app_state.quota.write().unwrap();
-                            quota.clear();
-                            let members = _t.app_state.subscribers.read();
-                            let iter:&Vec<Member> = members.as_ref().unwrap().as_ref();
-                            for ref subscriber in iter {
-                                quota.insert(subscriber.id.clone(), ServiceQuota::default());
-                            }
-                        }
-                    }
-                };
-                _t.try_broadcast();
-
+                _t.tick();
             },
         );
     }
@@ -152,7 +129,6 @@ impl Handler<WorkerUnit> for WebWorker {
                     quota.btc_count -= 1;
                     debug!("sent btc price: {}", &quota.btc_count);
                     self.set_user_quota(&user_id, quota);
-
                 } else {
                     self.viber.send_text_to("Max request count exceeded.", &user_id, Some(common::get_default_keyboard()));
                 }

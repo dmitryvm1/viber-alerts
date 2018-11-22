@@ -13,7 +13,7 @@ pub mod types;
 pub fn get_bitcoin_price() -> Option<BTCPrice> {
     let response = client::get("http://api.coindesk.com/v1/bpi/currentprice.json")
         .finish()
-        .unwrap()
+        .expect("get_bitcoin_price fail")
         .send()
         .wait();
     match response {

@@ -15,6 +15,7 @@ use common::messages::WorkerUnit;
 use bitcoin;
 use common;
 use ServiceQuota;
+use viber::messages::Member;
 
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
@@ -65,6 +66,33 @@ impl WebWorker {
 }
 
 impl WebWorker {
+    pub fn tick(&mut self) {
+        match self.inquire_if_needed() {
+            Err(e) => {
+                error!("Error inquiring workers forecast. {}", e.as_fail());
+            }
+            Ok(success) => {
+                if success {
+                    let mut state = &self.app_state;
+                    self
+                        .viber
+                        .update_subscribers(&mut state.subscribers.write().unwrap())
+                        .map_err(|e| {
+                            warn!("Failed to read subscribers. {:?}", e);
+                        });
+                    let mut quota = self.app_state.quota.write().unwrap();
+                    quota.clear();
+                    let members = self.app_state.subscribers.read();
+                    let iter:&Vec<Member> = members.as_ref().unwrap().as_ref();
+                    for ref subscriber in iter {
+                        quota.insert(subscriber.id.clone(), ServiceQuota::default());
+                    }
+                }
+            }
+        };
+        self.try_broadcast();
+    }
+
     fn is_outdated(&self) -> Result<bool, failure::Error> {
         match self.last_response {
             None => Ok(true),
@@ -249,7 +277,11 @@ impl WebWorker {
         let reqwest_client = reqwest::Client::new();
         let response = reqwest_client.get(&query).send()?;
         let geocoding: ReverseGeocoding = serde_json::from_reader(response)?;
-        Ok(geocoding.results.first().unwrap().formatted_address.clone())
+        let geo = geocoding.results.first();
+        if geo.is_none() {
+            return Ok(format!("lat: {}, lon: {}", lat, lon));
+        }
+        Ok(geo.unwrap().formatted_address.clone())
     }
 
     pub fn send_image(&self) -> Result<(), failure::Error> {
@@ -340,3 +372,4 @@ impl WebWorker {
         Ok(())
     }
 }
+
