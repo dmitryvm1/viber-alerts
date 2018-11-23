@@ -20,6 +20,8 @@ use viber::messages::Member;
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
 
+pub mod db;
+
 #[derive(Debug, Fail)]
 enum JsonError {
     #[fail(display = "field is missing: {}", name)]

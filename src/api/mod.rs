@@ -48,6 +48,10 @@ pub fn list(
     Ok(HttpResponse::Ok().content_type("text/html").body(html))
 }
 
+pub fn verify(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
+    Ok(HttpResponse::Ok().content_type("text/html").body(""))
+}
+
 pub fn viber_webhook(
     req: &HttpRequest<AppStateType>,
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
