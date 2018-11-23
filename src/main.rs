@@ -53,8 +53,7 @@ use oauth2::basic::BasicClient;
 use std::cell::Cell;
 use std::collections::HashMap;
 use viber::messages::Member;
-
-
+use actix::Addr;
 
 pub mod api;
 pub mod bitcoin;
@@ -153,7 +152,7 @@ impl Handler<WorkerUnit> for WebWorker {
 }
 
 pub struct AppState {
-    pub addr: Mutex<Cell<Option<Recipient<WorkerUnit>>>>,
+    pub addr: Mutex<Cell<Option<Addr<WebWorker>>>>,
     pub config: config::Config,
     pub subscribers: RwLock<Vec<messages::Member>>,
     pub last_text_broadcast: RwLock<scheduler::TryTillSuccess>,
@@ -223,11 +222,10 @@ fn main() {
     let _state = state.clone();
 
     let _server = Arbiter::start(move |ctx: &mut Context<_>| workers::WebWorker::new(_state));
-    let forecast_addr = _server.recipient();
+    let forecast_addr = _server.clone();
     {
         state.addr.lock().unwrap().set(Some(forecast_addr));
     }
-
 
     let addr = HttpServer::new(move || {
         App::with_state(state.clone())
@@ -240,7 +238,7 @@ fn main() {
             .handler("/api/static", fs::StaticFiles::new("static/").unwrap())
       //      .resource("/api/login", |r| r.method(http::Method::POST).with(api::login))
             .resource("/api/logout", |r| r.f(api::logout))
-            .resource("/api/verify/"), |r| r.f(api::verify)
+            .resource("/api/verify/", |r| r.f(api::verify))
             .resource("/api/google_oauth/", |r| r.f(api::google_oauth))
             .resource("/", |r| r.f(api::index))
             .resource("/api/", |r| r.f(api::index))

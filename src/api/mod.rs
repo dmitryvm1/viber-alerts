@@ -58,7 +58,7 @@ pub fn viber_webhook(
     use std::borrow::Cow;
 
     let state = req.state();
-    let addr:Recipient<WorkerUnit> = {
+    let addr:Addr<WebWorker> = {
         let mut temp = state.addr.lock().unwrap();
         temp.get_mut().as_ref().unwrap().clone()
     };
@@ -90,7 +90,7 @@ pub fn viber_webhook(
                         "message" => {
                             info!("message parsed {:?}", msg);
                             let cmd = handle_user_message(&msg);
-                            addr.do_send(cmd).unwrap();
+                            addr.do_send(cmd);
                         },
                         _ => {}
                     }
