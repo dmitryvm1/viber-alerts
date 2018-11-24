@@ -7,12 +7,17 @@
 <body>
 <a href="/api/logout">Log out</a>
 <h1>Hi, {{ email }}!</h1>
+{% if not verified %}
+<button>Verify</button>
+{% else %}
 <p>
     Last broadcast time: {{ last_broadcast }}
 </p>
-
 {% for member in members %}
 <div><img src="{{ member.avatar }}">{{ member.name }}</img></div>
 {% endfor %}
+{% endif %}
+
+
 </body>
 </html>

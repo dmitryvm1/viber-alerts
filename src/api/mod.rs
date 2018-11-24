@@ -235,10 +235,11 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
             } else {
                 result.unwrap()
             }
-        };
+        }.unwrap();
 
 
-        ctx.insert("email", &user.unwrap().email);
+        ctx.insert("email", user.email.as_ref().unwrap());
+        ctx.insert("verified", &user.viber_id.is_some());
         let html = state.template.render("index.html", &ctx).map_err(|e| {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")
