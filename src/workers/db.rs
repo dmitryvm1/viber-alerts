@@ -1,26 +1,20 @@
 use actix::Handler;
 use workers::WebWorker;
-use actix_web::Error;
 use models::User;
-use actix_web::error;
-/*
-#[derive(Message)]
-pub enum DbCommand {
-    UserByEmail(String),
-    AllUsers
+use actix::Message;
+use workers::CustomError;
+
+pub struct UserByEmail(String);
+
+impl Message for UserByEmail {
+    type Result = Result<User, failure::Error>;
 }
 
-impl Handler<DbCommand> for WebWorker {
-    type Result = Result<Vec<User>, Error>;
+impl Handler<UserByEmail> for WebWorker {
+    type Result = Result<User, failure::Error>;
 
-    fn handle(&mut self, cmd: DbCommand, _: &mut Self::Context) -> Self::Result {
-        match cmd {
-            DbCommand::UserByEmail(email) => {
-                User::by_email
-            }
-        }
-        Users::all(self.get_conn()?.deref())
-            .map_err(|_| error::ErrorInternalServerError("Error inserting task"))
+    fn handle(&mut self, msg: UserByEmail, _: &mut Self::Context) -> Self::Result {
+        let conn = self.app_state.pool.get().unwrap();
+        User::by_email(msg.0.as_str(), &conn).ok_or(failure::Error::from(CustomError{ msg:"no such user".to_owned() }))
     }
 }
-*/
