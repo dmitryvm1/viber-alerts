@@ -233,7 +233,7 @@ fn main() {
             .middleware(IdentityService::new(
                 CookieIdentityPolicy::new(&[0; 32])
                     .name("auth-example")
-                    .secure(false),
+                    .secure(true),
             ))
             .handler("/api/static", fs::StaticFiles::new("static/").unwrap())
       //      .resource("/api/login", |r| r.method(http::Method::POST).with(api::login))

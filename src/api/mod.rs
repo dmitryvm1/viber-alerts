@@ -30,6 +30,8 @@ use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, Redi
              TokenUrl};
 use api::auth::GoogleProfile;
 use std::time::Duration;
+use workers::db::UserByEmail;
+use workers::db::RegisterUser;
 
 pub mod auth;
 
@@ -198,6 +200,8 @@ pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResp
 
 pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
     let state: &AppStateType = req.state();
+    let mut addr = state.addr.lock().unwrap();
+    let addr = addr.get_mut().as_ref().unwrap().clone();
     if req.identity().is_none() {
         let mut ctx = tera::Context::new();
         /*ctx.insert("app_name", "Viber Alerts");
@@ -218,10 +222,23 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
         Ok(HttpResponse::Ok().content_type("text/html").body(html))
     } else {
         let mut ctx = tera::Context::new();
-        ctx.insert("text", &"Welcome!".to_owned());
+
         let ts = state.last_text_broadcast.read().unwrap().last_success;
         ctx.insert("last_broadcast", &chrono::Utc.timestamp(ts, 0).to_rfc2822());
         ctx.insert("members", &state.subscribers);
+        let user_email = req.identity().unwrap();
+
+        let result = addr.send(UserByEmail(user_email.clone())).wait();
+        let user = {
+            if result.is_err() {
+                addr.send(RegisterUser(user_email)).wait().unwrap()
+            } else {
+                result.unwrap()
+            }
+        };
+
+
+        ctx.insert("email", &user.unwrap().email);
         let html = state.template.render("index.html", &ctx).map_err(|e| {
             error!("Template error! {:?}", e);
             error::ErrorInternalServerError("Template error")

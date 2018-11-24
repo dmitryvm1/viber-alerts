@@ -6,8 +6,8 @@ use schema;
 #[derive(Insertable)]
 #[table_name = "users"]
 pub struct NewUser<'a> {
-    pub email: &'a str,
-    pub viber_id: &'a str,
+    pub email: Option<&'a str>,
+    pub viber_id: Option<&'a str>,
     pub broadcast: bool,
 }
 
@@ -21,10 +21,10 @@ pub struct User {
 }
 
 impl User {
-    pub fn insert(user: NewUser, conn: &PgConnection) -> QueryResult<usize> {
+    pub fn insert(user: NewUser, conn: &PgConnection) -> QueryResult<User> {
         diesel::insert_into(users::table)
             .values(&user)
-            .execute(conn)
+            .get_result(conn)
     }
 
     pub fn all(conn: &PgConnection) -> QueryResult<Vec<User>> {
