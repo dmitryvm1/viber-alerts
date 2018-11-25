@@ -1,6 +1,6 @@
 use oauth2::basic::BasicClient;
 use oauth2::prelude::*;
-use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
+use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, Scope,
              TokenUrl};
 use config;
 use url::Url;
@@ -37,7 +37,7 @@ pub fn prepare_google_auth(config: &config::Config) -> BasicClient {
     );
 
     // Set up the config for the Google OAuth2 process.
-    let client = BasicClient::new(
+    BasicClient::new(
         google_client_id,
         Some(google_client_secret),
         auth_url,
@@ -51,6 +51,5 @@ pub fn prepare_google_auth(config: &config::Config) -> BasicClient {
                 Url::parse(&format!("{}api/google_oauth/", &config.domain_root_url.clone().unwrap()))
                     .expect("Invalid redirect URL")
             )
-        );
-    client
+        )
 }

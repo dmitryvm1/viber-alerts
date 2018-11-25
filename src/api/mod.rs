@@ -1,35 +1,18 @@
 use actix_web::middleware::identity::RequestIdentity;
 use actix_web::*;
-use bitcoin;
 use chrono::TimeZone;
 use common::*;
 use futures::prelude::*;
-use models::NewUser;
-use models::User;
-use std::borrow::Borrow;
-use {
-    openssl::ssl::{Error as SslError, SslConnector, SslMethod},
-    tokio_openssl::SslConnectorExt,
-};
 use std::collections::HashMap;
-use std::ops::Deref;
 use viber::messages::CallbackMessage;
 use viber::raw;
-use std::borrow::BorrowMut;
 use common::messages::{ WorkerUnit };
 use workers::WebWorker;
-use actix::Recipient;
-use actix_web::http::StatusCode;
-use failure::Fail;
-use futures::future::{ok as fut_ok};
 use super::*;
 
-use oauth2::basic::BasicClient;
 use oauth2::prelude::*;
-use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
-             TokenUrl};
+use oauth2::{ AuthorizationCode, CsrfToken };
 use api::auth::GoogleProfile;
-use std::time::Duration;
 use workers::db::UserByEmail;
 use workers::db::RegisterUser;
 
@@ -57,7 +40,6 @@ pub fn verify(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
 pub fn viber_webhook(
     req: &HttpRequest<AppStateType>,
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
-    use std::borrow::Cow;
 
     let state = req.state();
     let addr:Addr<WebWorker> = {
@@ -209,12 +191,6 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
         })?;
         Ok(HttpResponse::Ok().content_type("text/html").body(html))
     }
-}
-
-#[derive(Deserialize)]
-pub struct LoginParams {
-    email_or_name: String,
-    password: String,
 }
 
 pub fn logout(req: &HttpRequest<AppStateType>) -> HttpResponse {

@@ -2,16 +2,12 @@ use chrono::*;
 
 pub struct TryTillSuccess {
     pub last_success: i64,
-    from_hour: u16,
-    to_hour: u16,
 }
 
 impl TryTillSuccess {
     pub fn new() -> TryTillSuccess {
         TryTillSuccess {
             last_success: 0,
-            from_hour: 0,
-            to_hour: 24,
         }
     }
 

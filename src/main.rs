@@ -23,13 +23,11 @@ extern crate forecast;
 extern crate oauth2;
 #[macro_use]
 extern crate failure;
-#[macro_use]
 extern crate tera;
 extern crate url;
 extern crate reqwest;
 extern crate tokio_openssl;
 
-use url::Url;
 use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{http, middleware, App};
 use std::sync::Arc;
@@ -45,14 +43,12 @@ use std::sync::Mutex;
 use std::sync::RwLock;
 use actix::Handler;
 use common::messages::*;
-use actix::Recipient;
 use actix::Message;
 use viber::messages;
 use api::auth::prepare_google_auth;
 use oauth2::basic::BasicClient;
 use std::cell::Cell;
 use std::collections::HashMap;
-use viber::messages::Member;
 use actix::Addr;
 
 pub mod api;
@@ -94,7 +90,7 @@ impl Actor for WebWorker {
     type Context = Context<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
         {
-            let mut state = &self.app_state;
+            let state = &self.app_state;
             if  self.viber
                 .update_subscribers(&mut state.subscribers.write().unwrap())
                 .is_err()
@@ -192,7 +188,6 @@ fn get_server_port() -> u16 {
 
 
 fn main() {
-    use std::borrow::BorrowMut;
     env::set_var("RUST_LOG", "viber_alerts=debug");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
@@ -236,7 +231,6 @@ fn main() {
                     .secure(true),
             ))
             .handler("/api/static", fs::StaticFiles::new("static/").unwrap())
-      //      .resource("/api/login", |r| r.method(http::Method::POST).with(api::login))
             .resource("/api/logout", |r| r.f(api::logout))
             .resource("/api/verify/", |r| r.f(api::verify))
             .resource("/api/google_oauth/", |r| r.f(api::google_oauth))

@@ -9,14 +9,14 @@ pub struct Bpi {
 pub struct BTCPrice {
     pub time: Time,
     pub disclaimer: String,
-    pub chartName: String,
+    pub chart_name: String,
     pub bpi: Bpi,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Time {
     pub updated: String,
-    pub updatedISO: String,
+    pub updated_iso: String,
     pub updateduk: String,
 }
 

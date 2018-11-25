@@ -1,7 +1,5 @@
 use diesel::*;
-use diesel::prelude::*;
 use schema::users;
-use schema;
 
 #[derive(Insertable)]
 #[table_name = "users"]
@@ -12,7 +10,6 @@ pub struct NewUser<'a> {
 }
 
 #[derive(Queryable, Debug, Serialize)]
-#[table_name = "users"]
 pub struct User {
     pub id: i32,
     pub email: Option<String>,

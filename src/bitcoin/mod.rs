@@ -1,12 +1,8 @@
 use self::types::*;
 use actix_web::client;
-use actix_web::error::{Error, PayloadError};
 use actix_web::HttpMessage;
 use futures::Future;
 use serde_json;
-// use serde_json::*;
-use failure;
-use workers::CustomError;
 
 pub mod types;
 

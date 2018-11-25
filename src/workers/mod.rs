@@ -9,9 +9,7 @@ use std::fs::File;
 use std::io::Read;
 use std::io::Write;
 use AppStateType;
-use actix::Handler;
 use viber;
-use common::messages::WorkerUnit;
 use bitcoin;
 use common;
 use ServiceQuota;
@@ -164,6 +162,7 @@ impl WebWorker {
         }))
     }
 
+    #[allow(dead_code)]
     fn download_images(&self) {
         let date = chrono::Utc::now();
         let name = format!("{}-{}-{}.jpg", date.year(), date.month(), date.day());
@@ -249,7 +248,7 @@ impl WebWorker {
 
     pub fn try_broadcast(&mut self) {
         {
-            let mut runner = &mut self.app_state.last_text_broadcast.write().unwrap();
+            let runner = &mut self.app_state.last_text_broadcast.write().unwrap();
             //16-20 UTC+2
             runner.daily(14, 20, &mut || {
                 debug!("Trying to broadcast workers");
@@ -257,7 +256,7 @@ impl WebWorker {
             });
         }
         {
-            let mut runner = &mut self.app_state.last_btc_update.write().unwrap();
+            let runner = &mut self.app_state.last_btc_update.write().unwrap();
             runner.daily(3, 6, &mut || {
                 info!("btc price daily");
                 self.send_btc_price(&self.viber.admin_id);
