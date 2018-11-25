@@ -20,7 +20,7 @@ pub struct BTCPrice {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Time {
     pub updated: String,
-    #[serde(rename="updateISO")]
+    #[serde(rename="updatedISO")]
     pub updated_iso: String,
     pub updateduk: String,
 }
