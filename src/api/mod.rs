@@ -68,7 +68,9 @@ pub fn viber_webhook(
                                 &key,
                                 kb,
                             )
-                            .wait();
+                            .wait().map_err(|e|{
+                                error!("Could not send welcome message.");
+                            });
                         },
 
                         "message" => {

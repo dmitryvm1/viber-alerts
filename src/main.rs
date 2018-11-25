@@ -125,7 +125,9 @@ impl Handler<WorkerUnit> for WebWorker {
                     debug!("sent btc price: {}", &quota.btc_count);
                     self.set_user_quota(&user_id, quota);
                 } else {
-                    self.viber.send_text_to("Max request count exceeded.", &user_id, Some(common::get_default_keyboard()));
+                    self.viber.send_text_to("Max request count exceeded.",
+                                            &user_id, Some(common::get_default_keyboard())
+                    ).unwrap_or_default();
                 }
             },
             WorkerUnit::TomorrowForecast { user_id } => {
@@ -140,7 +142,10 @@ impl Handler<WorkerUnit> for WebWorker {
                 }).unwrap_or_default();
             }
             WorkerUnit::UnknownCommand {user_id} => {
-                self.viber.send_text_to("Невідома команда. Відправте місцезнаходження, щоб дізнатися прогноз на завтра.", &user_id, Some(common::get_default_keyboard()));
+                self.viber.send_text_to("Невідома команда. Відправте місцезнаходження, щоб дізнатися прогноз на завтра.",
+                                        &user_id,
+                                        Some(common::get_default_keyboard())
+                ).unwrap_or_default();
             }
         };
         ()

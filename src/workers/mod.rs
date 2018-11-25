@@ -79,7 +79,7 @@ impl WebWorker {
                         .update_subscribers(&mut state.subscribers.write().unwrap())
                         .map_err(|e| {
                             warn!("Failed to read subscribers. {:?}", e);
-                        });
+                        }).unwrap_or_default();;
                     let mut quota = self.app_state.quota.write().unwrap();
                     quota.clear();
                     let members = self.app_state.subscribers.read();
@@ -168,11 +168,11 @@ impl WebWorker {
         let name = format!("{}-{}-{}.jpg", date.year(), date.month(), date.day());
         self.download_image(name.as_str()).map_err(|e| {
             warn!("Image not downloaded. {:?}", e);
-        });
+        }).unwrap_or_default();
         let name = format!("{}-{}-{}t.jpg", date.year(), date.month(), date.day());
         self.download_image(name.as_str()).map_err(|e| {
             warn!("Image not downloaded. {:?}", e);
-        });
+        }).unwrap_or_default();
     }
 
     fn tomorrow<'a>(&self, forecast: &'a Option<ApiResponse>) -> Result<&'a DataPoint, failure::Error> {
@@ -233,7 +233,7 @@ impl WebWorker {
             let price = price.unwrap();
             let msg_text = format!(
                 "{} \n1 BTC = {} $",
-                price.time.updateduk, price.bpi.USD.rate
+                price.time.updateduk, price.bpi.usd.rate
             );
             self.viber.send_text_to(
                 msg_text.as_str(),
