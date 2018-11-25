@@ -133,43 +133,6 @@ fn handle_user_message(msg: &CallbackMessage) -> WorkerUnit {
     actor_message
 }
 
-pub fn send_message(
-    req: &HttpRequest<AppStateType>,
-) -> Box<Future<Item = HttpResponse, Error = Error>> {
-    let state = req.state();
-    let config = &state.config;
-    let viber_api_key = &config.viber_api_key;
-    let key = &viber_api_key.as_ref();
-    super::viber::raw::send_text_message(
-        "Hi",
-        config.admin_id.as_ref().unwrap().as_str(),
-        key.unwrap(),
-        None,
-    )
-    .from_err()
-    .and_then(|response| {
-        response.body().poll()?;
-        Ok(HttpResponse::Ok().content_type("text/plain").body("sent"))
-    })
-    .responder()
-}
-
-pub fn acc_data(
-    req: &HttpRequest<AppStateType>,
-) -> Box<Future<Item = HttpResponse, Error = Error>> {
-    let state = req.state();
-    let config: &super::config::Config = &state.config;
-    super::viber::raw::get_account_data(config.viber_api_key.as_ref().unwrap())
-        .from_err()
-        .and_then(|response| {
-            response.body().from_err().and_then(|data| {
-                let contents = String::from_utf8(data.to_vec()).unwrap_or("".to_owned());
-                Ok(HttpResponse::Ok().content_type("text/plain").body(contents))
-            })
-        })
-        .responder()
-}
-
 pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>>  {
     use futures::{
         future::{
@@ -252,12 +215,6 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
 pub struct LoginParams {
     email_or_name: String,
     password: String,
-}
-
-pub fn users(req: &HttpRequest<AppStateType>) -> HttpResponse {
-    let pool = &req.state().pool;
-    let users = User::all(pool.get().unwrap().deref()).unwrap();
-    HttpResponse::Ok().body(format!("{:?}", users))
 }
 
 pub fn logout(req: &HttpRequest<AppStateType>) -> HttpResponse {
