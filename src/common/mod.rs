@@ -23,5 +23,3 @@ pub fn get_default_keyboard<'a>() -> Keyboard<'a> {
         ],
     }
 }
-
-

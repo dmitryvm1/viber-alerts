@@ -1,8 +1,7 @@
+use config;
 use oauth2::basic::BasicClient;
 use oauth2::prelude::*;
-use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, Scope,
-             TokenUrl};
-use config;
+use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, Scope, TokenUrl};
 use url::Url;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -19,14 +18,10 @@ pub struct GoogleProfile {
     pub locale: Option<String>,
 }
 
-
-pub fn prepare_google_auth(config: &config::Config) -> BasicClient {
-    let google_client_id = ClientId::new(
-        config.google_client_id.clone().unwrap()
-    );
-    let google_client_secret = ClientSecret::new(
-        config.google_client_secret.clone().unwrap()
-    );
+#[inline]
+pub fn build_google_auth_client(config: &config::Config) -> BasicClient {
+    let google_client_id = ClientId::new(config.google_client_id.clone().unwrap());
+    let google_client_secret = ClientSecret::new(config.google_client_secret.clone().unwrap());
     let auth_url = AuthUrl::new(
         Url::parse("https://accounts.google.com/o/oauth2/v2/auth")
             .expect("Invalid authorization endpoint URL"),
@@ -41,15 +36,22 @@ pub fn prepare_google_auth(config: &config::Config) -> BasicClient {
         google_client_id,
         Some(google_client_secret),
         auth_url,
-        Some(token_url)
+        Some(token_url),
     )
-        .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.profile".to_owned()))
-        .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.email".to_owned()))
-        .add_scope(Scope::new("https://www.googleapis.com/auth/plus.me".to_owned()))
-        .set_redirect_url(
-            RedirectUrl::new(
-                Url::parse(&format!("{}api/google_oauth/", &config.domain_root_url.clone().unwrap()))
-                    .expect("Invalid redirect URL")
-            )
-        )
+    .add_scope(Scope::new(
+        "https://www.googleapis.com/auth/userinfo.profile".to_owned(),
+    ))
+    .add_scope(Scope::new(
+        "https://www.googleapis.com/auth/userinfo.email".to_owned(),
+    ))
+    .add_scope(Scope::new(
+        "https://www.googleapis.com/auth/plus.me".to_owned(),
+    ))
+    .set_redirect_url(RedirectUrl::new(
+        Url::parse(&format!(
+            "{}api/google_oauth/",
+            &config.domain_root_url.clone().unwrap()
+        ))
+        .expect("Invalid redirect URL"),
+    ))
 }

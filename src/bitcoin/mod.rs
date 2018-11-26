@@ -13,12 +13,12 @@ pub fn get_bitcoin_price() -> Option<BTCPrice> {
         .send()
         .wait();
     match response {
-        Ok(r) => {
-            r
-                .body()
-                .and_then(|data| Ok(serde_json::from_slice(&data).ok()))
-                .wait().ok().unwrap_or(None)
-        },
-        _ => None
+        Ok(r) => r
+            .body()
+            .and_then(|data| Ok(serde_json::from_slice(&data).ok()))
+            .wait()
+            .ok()
+            .unwrap_or(None),
+        _ => None,
     }
 }

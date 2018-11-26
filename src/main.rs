@@ -23,33 +23,33 @@ extern crate forecast;
 extern crate oauth2;
 #[macro_use]
 extern crate failure;
-extern crate tera;
-extern crate url;
 extern crate reqwest;
+extern crate tera;
 extern crate tokio_openssl;
+extern crate url;
 
 use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{http, middleware, App};
 use std::sync::Arc;
 use workers::*;
 // use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+use actix::Addr;
+use actix::Handler;
+use actix::Message;
 use actix::{Actor, Arbiter, AsyncContext, Context, Running};
 use actix_web::server::HttpServer;
 use actix_web::*;
+use api::auth::build_google_auth_client;
+use common::messages::*;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
-use std::env;
-use std::sync::Mutex;
-use std::sync::RwLock;
-use actix::Handler;
-use common::messages::*;
-use actix::Message;
-use viber::messages;
-use api::auth::prepare_google_auth;
 use oauth2::basic::BasicClient;
 use std::cell::Cell;
 use std::collections::HashMap;
-use actix::Addr;
+use std::env;
+use std::sync::Mutex;
+use std::sync::RwLock;
+use viber::messages;
 
 pub mod api;
 pub mod bitcoin;
@@ -74,14 +74,14 @@ type PgPool = Pool<ConnectionManager<PgConnection>>;
 #[derive(Clone)]
 pub struct ServiceQuota {
     pub weather_count: u16,
-    pub btc_count: u16
+    pub btc_count: u16,
 }
 
 impl Default for ServiceQuota {
     fn default() -> Self {
         ServiceQuota {
             weather_count: 22,
-            btc_count: 12
+            btc_count: 12,
         }
     }
 }
@@ -91,7 +91,8 @@ impl Actor for WebWorker {
     fn started(&mut self, ctx: &mut Self::Context) {
         {
             let state = &self.app_state;
-            if  self.viber
+            if self
+                .viber
                 .update_subscribers(&mut state.subscribers.write().unwrap())
                 .is_err()
             {
@@ -115,7 +116,7 @@ impl Actor for WebWorker {
 impl Handler<WorkerUnit> for WebWorker {
     type Result = ();
 
-    fn handle(&mut self, msg: WorkerUnit, ctx: & mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: WorkerUnit, ctx: &mut Context<Self>) -> Self::Result {
         match msg {
             WorkerUnit::BTCPrice { user_id } => {
                 let mut quota = self.get_user_quota(&user_id);
@@ -124,22 +125,30 @@ impl Handler<WorkerUnit> for WebWorker {
                     quota.btc_count -= 1;
                     self.set_user_quota(&user_id, quota);
                 } else {
-                    self.viber.send_text_to("Max request count exceeded.",
-                                            &user_id, Some(common::get_default_keyboard())
-                    ).unwrap_or_default();
+                    self.viber
+                        .send_text_to(
+                            "Max request count exceeded.",
+                            &user_id,
+                            Some(common::get_default_keyboard()),
+                        )
+                        .unwrap_or_default();
                 }
-            },
-            WorkerUnit::TomorrowForecast { user_id } => {
-                self.send_forecast_for_tomorrow( &self.last_response, &user_id, "").map_err(|_| {
-                    error!("Can't send forecast for tomorrow to {}", &user_id);
-                }).unwrap_or_default();
-            },
-            WorkerUnit::ImmediateTomorrowForecast { user_id, lat, lon } => {
-                self.immediate_forecast_for_tomorrow(&user_id, lat, lon).map_err(|_| {
-                    error!("Can't send forecast for tomorrow to {}", &user_id);
-                }).unwrap_or_default();
             }
-            WorkerUnit::UnknownCommand {user_id} => {
+            WorkerUnit::TomorrowForecast { user_id } => {
+                self.send_forecast_for_tomorrow(&self.last_response, &user_id, "")
+                    .map_err(|_| {
+                        error!("Can't send forecast for tomorrow to {}", &user_id);
+                    })
+                    .unwrap_or_default();
+            }
+            WorkerUnit::ImmediateTomorrowForecast { user_id, lat, lon } => {
+                self.immediate_forecast_for_tomorrow(&user_id, lat, lon)
+                    .map_err(|_| {
+                        error!("Can't send forecast for tomorrow to {}", &user_id);
+                    })
+                    .unwrap_or_default();
+            }
+            WorkerUnit::UnknownCommand { user_id } => {
                 self.viber.send_text_to("Невідома команда. Відправте місцезнаходження, щоб дізнатися прогноз на завтра.",
                                         &user_id,
                                         Some(common::get_default_keyboard())
@@ -189,7 +198,6 @@ fn get_server_port() -> u16 {
         .unwrap_or(8080)
 }
 
-
 fn main() {
     env::set_var("RUST_LOG", "viber_alerts=debug");
     env::set_var("RUST_BACKTRACE", "1");
@@ -215,7 +223,7 @@ fn main() {
         .build(manager)
         .expect("Failed to create pool.");
     let state = Arc::new(AppState::new(&config, pool));
-    let oauth_client = prepare_google_auth(&config);
+    let oauth_client = build_google_auth_client(&config);
     state.auth_client.lock().unwrap().set(Some(oauth_client));
     let _state = state.clone();
 
@@ -239,7 +247,9 @@ fn main() {
             .resource("/api/google_oauth/", |r| r.f(api::google_oauth))
             .resource("/", |r| r.f(api::index))
             .resource("/api/", |r| r.f(api::index))
-            .resource("/google6e03bff5229f1e21.html", |r| r.f(|_| "google-site-verification: google6e03bff5229f1e21.html"))
+            .resource("/google6e03bff5229f1e21.html", |r| {
+                r.f(|_| "google-site-verification: google6e03bff5229f1e21.html")
+            })
             .resource("/list", |r| r.method(http::Method::GET).with(api::list))
             .resource("/api/viber/webhook/", |r| r.f(api::viber_webhook))
     })

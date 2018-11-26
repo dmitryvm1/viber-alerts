@@ -6,9 +6,7 @@ pub struct TryTillSuccess {
 
 impl TryTillSuccess {
     pub fn new() -> TryTillSuccess {
-        TryTillSuccess {
-            last_success: 0,
-        }
+        TryTillSuccess { last_success: 0 }
     }
 
     pub fn daily(&mut self, from: u8, to: u8, f: &mut FnMut() -> bool) -> &Self {

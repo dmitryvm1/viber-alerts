@@ -29,7 +29,10 @@ impl User {
     }
 
     pub fn by_email(user_email: &str, conn: &PgConnection) -> Option<User> {
-        let mut results:Vec<User> = users::dsl::users.filter(users::dsl::email.eq(user_email)).load(conn).unwrap();
+        let mut results: Vec<User> = users::dsl::users
+            .filter(users::dsl::email.eq(user_email))
+            .load(conn)
+            .unwrap();
         results.pop()
     }
 }

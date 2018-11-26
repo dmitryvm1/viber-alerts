@@ -1,20 +1,20 @@
+use super::*;
 use actix_web::middleware::identity::RequestIdentity;
 use actix_web::*;
 use chrono::TimeZone;
+use common::messages::WorkerUnit;
 use common::*;
 use futures::prelude::*;
 use std::collections::HashMap;
 use viber::messages::CallbackMessage;
 use viber::raw;
-use common::messages::{ WorkerUnit };
 use workers::WebWorker;
-use super::*;
 
-use oauth2::prelude::*;
-use oauth2::{ AuthorizationCode, CsrfToken };
 use api::auth::GoogleProfile;
-use workers::db::UserByEmail;
+use oauth2::prelude::*;
+use oauth2::{AuthorizationCode, CsrfToken};
 use workers::db::RegisterUser;
+use workers::db::UserByEmail;
 
 pub mod auth;
 
@@ -40,9 +40,8 @@ pub fn verify(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
 pub fn viber_webhook(
     req: &HttpRequest<AppStateType>,
 ) -> Box<Future<Item = HttpResponse, Error = Error>> {
-
     let state = req.state();
-    let addr:Addr<WebWorker> = {
+    let addr: Addr<WebWorker> = {
         let mut temp = state.addr.lock().unwrap();
         temp.get_mut().as_ref().unwrap().clone()
     };
@@ -66,15 +65,16 @@ pub fn viber_webhook(
                                 &key,
                                 kb,
                             )
-                            .wait().map_err(|e|{
+                            .wait()
+                            .map_err(|e| {
                                 error!("Could not send welcome message.");
                             });
-                        },
+                        }
 
                         "message" => {
                             let cmd = handle_user_message(&msg);
                             addr.do_send(cmd);
-                        },
+                        }
                         _ => {}
                     }
                     Ok(HttpResponse::Ok().content_type("text/plain").body(""))
@@ -88,53 +88,67 @@ pub fn viber_webhook(
         .responder()
 }
 
-
 fn handle_user_message(msg: &CallbackMessage) -> WorkerUnit {
     let user = msg.sender.as_ref().unwrap().id.as_ref().unwrap();
     let message = msg.message.as_ref().unwrap();
     let actor_message = match msg.message.as_ref().unwrap()._type.as_ref() {
         "location" => {
             let location = msg.message.as_ref().unwrap().location.as_ref().unwrap();
-            WorkerUnit::ImmediateTomorrowForecast { user_id: user.to_string(), lat: location.lat, lon: location.lon }
-        },
-        "text" => {
-            match message.text.as_ref().unwrap().as_ref() {
-                "bitcoin" => {
-                    WorkerUnit::BTCPrice { user_id: user.to_string() }
-                },
-                "forecast_kiev_tomorrow" => {
-                    WorkerUnit::TomorrowForecast { user_id: user.to_string() }
-                }
-                _ => WorkerUnit::UnknownCommand { user_id: user.to_string() }
+            WorkerUnit::ImmediateTomorrowForecast {
+                user_id: user.to_string(),
+                lat: location.lat,
+                lon: location.lon,
             }
+        }
+        "text" => match message.text.as_ref().unwrap().as_ref() {
+            "bitcoin" => WorkerUnit::BTCPrice {
+                user_id: user.to_string(),
+            },
+            "forecast_kiev_tomorrow" => WorkerUnit::TomorrowForecast {
+                user_id: user.to_string(),
+            },
+            _ => WorkerUnit::UnknownCommand {
+                user_id: user.to_string(),
+            },
         },
-        _ => WorkerUnit::UnknownCommand { user_id: user.to_string() }
+        _ => WorkerUnit::UnknownCommand {
+            user_id: user.to_string(),
+        },
     };
     actor_message
 }
 
-pub fn google_oauth(req: &HttpRequest<AppStateType>) -> Box<Future<Item=HttpResponse, Error=Error>>  {
-    use futures::{
-        future::{
-            ok as fut_ok,
-            err as fut_err
-        }
-    };
+pub fn google_oauth(
+    req: &HttpRequest<AppStateType>,
+) -> Box<Future<Item = HttpResponse, Error = Error>> {
+    use futures::future::{err as fut_err, ok as fut_ok};
     let code = AuthorizationCode::new(req.query().get("code").unwrap().to_string());
     let token = {
         let state: &AppStateType = req.state();
         let st = state;
         let mut client = st.auth_client.lock().unwrap();
-        client.get_mut().as_ref().unwrap().exchange_code(code).map_err(|e|{
-            actix_web::error::ErrorInternalServerError(e)
-        })
+        client
+            .get_mut()
+            .as_ref()
+            .unwrap()
+            .exchange_code(code)
+            .map_err(|e| actix_web::error::ErrorInternalServerError(e))
     };
     if token.is_err() {
-        return fut_err(actix_web::error::ErrorUnauthorized("could not exchange token")).responder();
+        return fut_err(actix_web::error::ErrorUnauthorized(
+            "could not exchange token",
+        ))
+        .responder();
     }
-    let resp = reqwest::get(&format!("https://www.googleapis.com/userinfo/v2/me?access_token={}", token.unwrap().access_token().secret()));
+    let resp = reqwest::get(&format!(
+        "https://www.googleapis.com/userinfo/v2/me?access_token={}",
+        token.unwrap().access_token().secret()
+    ));
     if !resp.is_ok() {
-        return fut_err(actix_web::error::ErrorUnauthorized("Could not get user info.")).responder();
+        return fut_err(actix_web::error::ErrorUnauthorized(
+            "Could not get user info.",
+        ))
+        .responder();
     }
     let json: GoogleProfile = serde_json::from_reader(resp.unwrap()).expect("bad gauth response");
     req.remember(json.email.expect("no email"));
@@ -154,7 +168,11 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
         })?;*/
         let st = state;
         let mut client = st.auth_client.lock().unwrap();
-        let (authorize_url, csrf_state) = client.get_mut().as_ref().unwrap().authorize_url(CsrfToken::new_random);
+        let (authorize_url, csrf_state) = client
+            .get_mut()
+            .as_ref()
+            .unwrap()
+            .authorize_url(CsrfToken::new_random);
         ctx.insert("app_name", &"Viber Alerts!".to_owned());
         ctx.insert("auth_url", &authorize_url.to_string());
         let html = state.template.render("login.html", &ctx).map_err(|e| {
@@ -177,8 +195,8 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
             } else {
                 result.unwrap()
             }
-        }.unwrap();
-
+        }
+        .unwrap();
 
         ctx.insert("email", user.email.as_ref().unwrap());
         ctx.insert("verified", &user.viber_id.is_some());

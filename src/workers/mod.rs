@@ -1,19 +1,19 @@
 use actix_web::HttpMessage;
 use actix_web::*;
+use bitcoin;
 use chrono::FixedOffset;
 use chrono::*;
+use common;
 use forecast::ApiResponse;
 use forecast::*;
 use futures::Future;
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
-use AppStateType;
 use viber;
-use bitcoin;
-use common;
-use ServiceQuota;
 use viber::messages::Member;
+use AppStateType;
+use ServiceQuota;
 
 static LATITUDE: f64 = 50.4501;
 static LONGITUDE: f64 = 30.5234;
@@ -60,7 +60,7 @@ impl WebWorker {
             app_state,
             last_response: None,
             last_subscriber_update: 0,
-            viber: viber::Viber::new(api, admin)
+            viber: viber::Viber::new(api, admin),
         }
     }
 }
@@ -74,16 +74,16 @@ impl WebWorker {
             Ok(success) => {
                 if success {
                     let mut state = &self.app_state;
-                    self
-                        .viber
+                    self.viber
                         .update_subscribers(&mut state.subscribers.write().unwrap())
                         .map_err(|e| {
                             error!("Failed to read subscribers of the viber chat. {:?}", e);
-                        }).unwrap_or_default();;
+                        })
+                        .unwrap_or_default();;
                     let mut quota = self.app_state.quota.write().unwrap();
                     quota.clear();
                     let members = self.app_state.subscribers.read();
-                    let iter:&Vec<Member> = members.as_ref().unwrap().as_ref();
+                    let iter: &Vec<Member> = members.as_ref().unwrap().as_ref();
                     for ref subscriber in iter {
                         quota.insert(subscriber.id.clone(), ServiceQuota::default());
                     }
@@ -166,16 +166,23 @@ impl WebWorker {
     fn download_images(&self) {
         let date = chrono::Utc::now();
         let name = format!("{}-{}-{}.jpg", date.year(), date.month(), date.day());
-        self.download_image(name.as_str()).map_err(|e| {
-            error!("Image not downloaded. {:?}", e);
-        }).unwrap_or_default();
+        self.download_image(name.as_str())
+            .map_err(|e| {
+                error!("Image not downloaded. {:?}", e);
+            })
+            .unwrap_or_default();
         let name = format!("{}-{}-{}t.jpg", date.year(), date.month(), date.day());
-        self.download_image(name.as_str()).map_err(|e| {
-            error!("Image not downloaded. {:?}", e);
-        }).unwrap_or_default();
+        self.download_image(name.as_str())
+            .map_err(|e| {
+                error!("Image not downloaded. {:?}", e);
+            })
+            .unwrap_or_default();
     }
 
-    fn tomorrow<'a>(&self, forecast: &'a Option<ApiResponse>) -> Result<&'a DataPoint, failure::Error> {
+    fn tomorrow<'a>(
+        &self,
+        forecast: &'a Option<ApiResponse>,
+    ) -> Result<&'a DataPoint, failure::Error> {
         if let Some(ref lr) = forecast {
             let daily = lr.daily.as_ref().ok_or(JsonError::MissingField {
                 name: "daily".to_owned(),
@@ -196,7 +203,10 @@ impl WebWorker {
 
     pub fn set_user_quota(&self, user_id: &str, user_quota: ServiceQuota) {
         let mut quota = self.app_state.quota.write();
-        quota.as_mut().unwrap().insert(user_id.to_owned(), user_quota);
+        quota
+            .as_mut()
+            .unwrap()
+            .insert(user_id.to_owned(), user_quota);
     }
 
     fn inquire(&self, lat: f64, lon: f64) -> Result<ApiResponse, failure::Error> {
@@ -233,12 +243,13 @@ impl WebWorker {
                 "{} \n1 BTC = {} $",
                 price.time.updateduk, price.bpi.usd.rate
             );
-            self.viber.send_text_to(
-                msg_text.as_str(),
-                &user_id,
-                Some(common::get_default_keyboard()),
-            ).expect("error sending viber message");
-
+            self.viber
+                .send_text_to(
+                    msg_text.as_str(),
+                    &user_id,
+                    Some(common::get_default_keyboard()),
+                )
+                .expect("error sending viber message");
         } else {
             error!("Could not get bitcoin price.");
         }
@@ -249,7 +260,8 @@ impl WebWorker {
             let runner = &mut self.app_state.last_text_broadcast.write().unwrap();
             //16-20 UTC+2
             runner.daily(14, 20, &mut || {
-                self.send_forecast_for_tomorrow(&self.last_response, &self.viber.admin_id, "").is_ok()
+                self.send_forecast_for_tomorrow(&self.last_response, &self.viber.admin_id, "")
+                    .is_ok()
             });
         }
         {
@@ -261,9 +273,16 @@ impl WebWorker {
         }
     }
 
-    pub fn immediate_forecast_for_tomorrow(&self, user_id: &str, lat: f64, lon: f64) -> Result<(), failure::Error> {
+    pub fn immediate_forecast_for_tomorrow(
+        &self,
+        user_id: &str,
+        lat: f64,
+        lon: f64,
+    ) -> Result<(), failure::Error> {
         let forecast = self.inquire(lat, lon).ok();
-        let mut address = self.get_address_by_location(lat, lon).unwrap_or("".to_owned());
+        let mut address = self
+            .get_address_by_location(lat, lon)
+            .unwrap_or("".to_owned());
         address.push_str("\n");
         self.send_forecast_for_tomorrow(&forecast, user_id, &address)
     }
@@ -299,12 +318,11 @@ impl WebWorker {
                 self.app_state.config.hosting_root_url.clone().unwrap(),
                 &thumb
             );
-            self.viber
-                .send_picture_message_to_admin(
-                    url.as_str(),
-                    thumb_url.as_str(),
-                    "Прогноз на 7 дней",
-                )
+            self.viber.send_picture_message_to_admin(
+                url.as_str(),
+                thumb_url.as_str(),
+                "Прогноз на 7 дней",
+            )
         } else {
             Err((CustomError {
                 msg: "no image to send for today".to_owned(),
@@ -314,7 +332,7 @@ impl WebWorker {
     }
 
     pub fn format_forecast(data_point: &DataPoint) -> Result<String, failure::Error> {
-       /* let dt = Utc.timestamp(data_point.time as i64, 0);
+        /* let dt = Utc.timestamp(data_point.time as i64, 0);
         format!("{:?}\n{:?}", dt.to_rfc2822(), data_point)*/
 
         let dt = Utc.timestamp(data_point.time as i64, 0);
@@ -333,7 +351,11 @@ impl WebWorker {
         let precip_formatted = if probability < 0.01 {
             "Без опадів".to_owned()
         } else {
-            format!(" \nОпади: {:?} з ймовірністю {:.2}%", precip, probability * 100.0)
+            format!(
+                " \nОпади: {:?} з ймовірністю {:.2}%",
+                precip,
+                probability * 100.0
+            )
         };
         Ok(format!("Прогноз на завтра {}.{}:\n{}\nТемпература: від {:?}\u{2103} до {:?}\u{2103}\n{}", dt.day(),
                               dt.month(),
@@ -346,7 +368,12 @@ impl WebWorker {
                               )?, &precip_formatted))
     }
 
-    pub fn send_forecast_for_tomorrow(&self, forecast: &Option<ApiResponse>, to: &str, additional_text: &str) -> Result<(), failure::Error> {
+    pub fn send_forecast_for_tomorrow(
+        &self,
+        forecast: &Option<ApiResponse>,
+        to: &str,
+        additional_text: &str,
+    ) -> Result<(), failure::Error> {
         let mut quota = self.get_user_quota(to);
         if quota.weather_count == 0 {
             return self.viber.send_text_to(
@@ -368,4 +395,3 @@ impl WebWorker {
         Ok(())
     }
 }
-

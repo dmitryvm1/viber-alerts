@@ -1,10 +1,10 @@
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Bpi {
-    #[serde(rename="USD")]
+    #[serde(rename = "USD")]
     pub usd: Currency,
-    #[serde(rename="GBP")]
+    #[serde(rename = "GBP")]
     pub gbp: Currency,
-    #[serde(rename="EUR")]
+    #[serde(rename = "EUR")]
     pub eur: Currency,
 }
 
@@ -12,7 +12,7 @@ pub struct Bpi {
 pub struct BTCPrice {
     pub time: Time,
     pub disclaimer: String,
-    #[serde(rename="chartName")]
+    #[serde(rename = "chartName")]
     pub chart_name: String,
     pub bpi: Bpi,
 }
@@ -20,7 +20,7 @@ pub struct BTCPrice {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Time {
     pub updated: String,
-    #[serde(rename="updatedISO")]
+    #[serde(rename = "updatedISO")]
     pub updated_iso: String,
     pub updateduk: String,
 }

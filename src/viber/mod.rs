@@ -18,13 +18,13 @@ struct ViberApiError {
 
 impl Viber {
     pub fn new(api_key: String, admin_id: String) -> Viber {
-        Viber {
-            api_key,
-            admin_id
-        }
+        Viber { api_key, admin_id }
     }
 
-    pub fn update_subscribers(&self, out: &mut Vec<messages::Member>) -> std::result::Result<(), failure::Error> {
+    pub fn update_subscribers(
+        &self,
+        out: &mut Vec<messages::Member>,
+    ) -> std::result::Result<(), failure::Error> {
         raw::get_account_data(&self.api_key)
             .from_err()
             .and_then(|response| {
@@ -36,7 +36,8 @@ impl Viber {
                     }
                     Ok(())
                 })
-            }).wait()
+            })
+            .wait()
     }
 
     pub fn send_text_to(

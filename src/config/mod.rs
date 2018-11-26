@@ -10,7 +10,7 @@ pub struct Config {
     pub database_url: Option<String>,
     pub google_client_id: Option<String>,
     pub google_client_secret: Option<String>,
-    pub google_maps_api_key: Option<String>
+    pub google_maps_api_key: Option<String>,
 }
 
 impl Config {
