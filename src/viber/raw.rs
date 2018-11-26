@@ -106,7 +106,6 @@ pub fn send_picture_message(
         thumbnail: Cow::from(thumb),
         tracking_data: Cow::from(""),
     };
-    debug!("{:?}", picture_message);
     actix_web::client::post("https://chatapi.viber.com/pa/send_message")
         .header("X-Viber-Auth-Token", auth.clone())
         .json(picture_message)

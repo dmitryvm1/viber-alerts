@@ -47,7 +47,7 @@ impl Config {
 
     #[allow(dead_code)]
     fn read_from_toml(app_name: &str) -> Config {
-        println!("Reading config");
+        info!("Reading config");
         // Get the user's home dir path
         let mut path_buf = dirs::home_dir().unwrap();
         // append folder for storing user related files

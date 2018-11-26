@@ -55,12 +55,10 @@ pub fn viber_webhook(
         .and_then(move |body| {
             let cb_msg: Result<CallbackMessage, serde_json::Error> =
                 serde_json::from_slice::<CallbackMessage>(&body);
-            info!("viber hook {:?}", cb_msg);
             match cb_msg {
                 Ok(ref msg) => {
                     match msg.event.as_ref() {
                         "conversation_started" => {
-                            info!("message parsed {:?}", msg);
                             let user = msg.user.as_ref().unwrap();
                             raw::send_text_message(
                                 "Welcome to Kiev Alerts",
@@ -74,23 +72,22 @@ pub fn viber_webhook(
                         },
 
                         "message" => {
-                            info!("message parsed {:?}", msg);
                             let cmd = handle_user_message(&msg);
                             addr.do_send(cmd);
                         },
                         _ => {}
                     }
-                    info!("sending ok response");
                     Ok(HttpResponse::Ok().content_type("text/plain").body(""))
                 }
                 Err(e) => {
-                    debug!("Error parsing json, {:?}", e);
+                    error!("Error parsing json, {:?}", e);
                     Ok(HttpResponse::Ok().content_type("text/plain").body(""))
                 }
             }
         })
         .responder()
 }
+
 
 fn handle_user_message(msg: &CallbackMessage) -> WorkerUnit {
     let user = msg.sender.as_ref().unwrap().id.as_ref().unwrap();
@@ -106,7 +103,6 @@ fn handle_user_message(msg: &CallbackMessage) -> WorkerUnit {
                     WorkerUnit::BTCPrice { user_id: user.to_string() }
                 },
                 "forecast_kiev_tomorrow" => {
-                    info!("message parsed {:?}", msg);
                     WorkerUnit::TomorrowForecast { user_id: user.to_string() }
                 }
                 _ => WorkerUnit::UnknownCommand { user_id: user.to_string() }
@@ -159,7 +155,6 @@ pub fn index(req: &HttpRequest<AppStateType>) -> Result<HttpResponse, Error> {
         let st = state;
         let mut client = st.auth_client.lock().unwrap();
         let (authorize_url, csrf_state) = client.get_mut().as_ref().unwrap().authorize_url(CsrfToken::new_random);
-        debug!("{:?}", authorize_url);
         ctx.insert("app_name", &"Viber Alerts!".to_owned());
         ctx.insert("auth_url", &authorize_url.to_string());
         let html = state.template.render("login.html", &ctx).map_err(|e| {

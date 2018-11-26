@@ -78,7 +78,7 @@ impl WebWorker {
                         .viber
                         .update_subscribers(&mut state.subscribers.write().unwrap())
                         .map_err(|e| {
-                            warn!("Failed to read subscribers. {:?}", e);
+                            error!("Failed to read subscribers of the viber chat. {:?}", e);
                         }).unwrap_or_default();;
                     let mut quota = self.app_state.quota.write().unwrap();
                     quota.clear();
@@ -167,11 +167,11 @@ impl WebWorker {
         let date = chrono::Utc::now();
         let name = format!("{}-{}-{}.jpg", date.year(), date.month(), date.day());
         self.download_image(name.as_str()).map_err(|e| {
-            warn!("Image not downloaded. {:?}", e);
+            error!("Image not downloaded. {:?}", e);
         }).unwrap_or_default();
         let name = format!("{}-{}-{}t.jpg", date.year(), date.month(), date.day());
         self.download_image(name.as_str()).map_err(|e| {
-            warn!("Image not downloaded. {:?}", e);
+            error!("Image not downloaded. {:?}", e);
         }).unwrap_or_default();
     }
 
@@ -214,7 +214,6 @@ impl WebWorker {
                 .lang(Lang::Ukranian)
                 .units(Units::UK)
                 .build();
-        info!("Requesting workers forecast");
         let mut forecast_response = api_client.get_forecast(forecast_request)?;
         if !forecast_response.status().is_success() {
             let mut body = String::new();
@@ -228,7 +227,6 @@ impl WebWorker {
 
     pub fn send_btc_price(&self, user_id: &str) {
         let price = bitcoin::get_bitcoin_price();
-        info!("btc {:?}", price);
         if price.is_some() {
             let price = price.unwrap();
             let msg_text = format!(
@@ -251,14 +249,12 @@ impl WebWorker {
             let runner = &mut self.app_state.last_text_broadcast.write().unwrap();
             //16-20 UTC+2
             runner.daily(14, 20, &mut || {
-                debug!("Trying to broadcast workers");
                 self.send_forecast_for_tomorrow(&self.last_response, &self.viber.admin_id, "").is_ok()
             });
         }
         {
             let runner = &mut self.app_state.last_btc_update.write().unwrap();
             runner.daily(3, 6, &mut || {
-                info!("btc price daily");
                 self.send_btc_price(&self.viber.admin_id);
                 true
             });
@@ -369,7 +365,6 @@ impl WebWorker {
             to,
             Some(get_default_keyboard()),
         )?;
-        info!("Viber message sent: {}", &msg);
         Ok(())
     }
 }

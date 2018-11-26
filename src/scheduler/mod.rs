@@ -20,7 +20,6 @@ impl TryTillSuccess {
             && now.hour() < to as u32
             && now.hour() > from as u32
         {
-            debug!("Executing at hour: {}", now.hour());
             if f() {
                 self.last_success = now.timestamp();
             }

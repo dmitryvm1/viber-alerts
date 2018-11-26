@@ -49,10 +49,9 @@ impl Viber {
             .from_err()
             .and_then(|response| {
                 if !response.status().is_success() {
-                    debug!("Failed to send message");
+                    error!("Failed to send viber message.");
                 }
                 let body = response.body().poll()?;
-                debug!("Send text to: {:?}", body);
                 Ok(())
             })
             .wait()

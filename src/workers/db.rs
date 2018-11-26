@@ -16,7 +16,6 @@ impl Handler<UserByEmail> for WebWorker {
 
     fn handle(&mut self, msg: UserByEmail, _: &mut Self::Context) -> Self::Result {
         let conn = self.app_state.pool.get().unwrap();
-        info!("query user by email :{}", msg.0.as_str());
         User::by_email(msg.0.as_str(), &conn)
             .ok_or(failure::Error::from(CustomError{ msg:"no such user".to_owned() }))
     }

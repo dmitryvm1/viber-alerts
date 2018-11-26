@@ -95,7 +95,7 @@ impl Actor for WebWorker {
                 .update_subscribers(&mut state.subscribers.write().unwrap())
                 .is_err()
             {
-                warn!("Failed to read subscribers.");
+                error!("Failed to read subscribers.");
             };
         }
 
@@ -122,7 +122,6 @@ impl Handler<WorkerUnit> for WebWorker {
                 if quota.btc_count > 0 {
                     self.send_btc_price(&user_id);
                     quota.btc_count -= 1;
-                    debug!("sent btc price: {}", &quota.btc_count);
                     self.set_user_quota(&user_id, quota);
                 } else {
                     self.viber.send_text_to("Max request count exceeded.",
@@ -131,7 +130,6 @@ impl Handler<WorkerUnit> for WebWorker {
                 }
             },
             WorkerUnit::TomorrowForecast { user_id } => {
-                debug!("handling tomorrow forecast");
                 self.send_forecast_for_tomorrow( &self.last_response, &user_id, "").map_err(|_| {
                     error!("Can't send forecast for tomorrow to {}", &user_id);
                 }).unwrap_or_default();
