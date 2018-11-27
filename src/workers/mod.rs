@@ -197,8 +197,20 @@ impl WebWorker {
 
     pub fn get_user_quota(&self, user_id: &str) -> ServiceQuota {
         let quota = &self.app_state.quota.read();
-        let user_quota = quota.as_ref().unwrap().get(user_id).unwrap();
-        (*user_quota).clone()
+        let user_quota = quota.as_ref().unwrap().get(user_id);
+        match user_quota {
+            Some(ref q) => {
+                (*q).clone()
+            }
+            None => {
+                //TODO figure out why this is happening
+                error!("No qouta for user {}", user_id);
+                ServiceQuota {
+                    weather_count: 0,
+                    btc_count: 0
+                }
+            }
+        }
     }
 
     pub fn set_user_quota(&self, user_id: &str, user_quota: ServiceQuota) {
