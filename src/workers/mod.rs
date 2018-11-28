@@ -344,9 +344,6 @@ impl WebWorker {
     }
 
     pub fn format_forecast(data_point: &DataPoint) -> Result<String, failure::Error> {
-        /* let dt = Utc.timestamp(data_point.time as i64, 0);
-        format!("{:?}\n{:?}", dt.to_rfc2822(), data_point)*/
-
         let dt = Utc.timestamp(data_point.time as i64, 0);
         let (precip, probability) = match data_point.precip_type.as_ref() {
             Some(p) => {
