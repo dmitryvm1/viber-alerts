@@ -207,14 +207,6 @@ fn main() {
     let mut fullchain_path = privkey_path.clone();
     privkey_path.push("privkey.pem");
     fullchain_path.push("fullchain.pem");
-
-    // load ssl keys
-    // let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-    // builder
-    //      .set_private_key_file(privkey_path.to_str().unwrap(), SslFiletype::PEM)
-    //       .unwrap();
-    //   builder.set_certificate_chain_file(fullchain_path.to_str().unwrap()).unwrap();
-
     let config = config::Config::read(APP_NAME);
     info!("Connecting to the database:");
     let db_url = config.database_url.clone().expect("No db url.");
