@@ -4,6 +4,7 @@ use futures::Future;
 use std::borrow::Cow;
 
 use viber::messages;
+use viber::messages::Sender;
 
 pub fn get_account_data(
     auth: &String,
@@ -26,14 +27,7 @@ pub fn send_video_message(
         min_api_version: 1,
         receiver: Cow::from(receiver),
         media: Cow::from(url),
-        sender: messages::Sender {
-            avatar: Cow::from(""),
-            name: Cow::from("Bot"),
-            id: None,
-            language: None,
-            country: None,
-            api_version: None,
-        },
+        sender: *Sender::new("Bot"),
         keyboard: None,
         duration: 0,
         thumbnail: Cow::from(""),
@@ -60,14 +54,7 @@ pub fn send_file_message(
         min_api_version: 1,
         receiver: Cow::from(receiver),
         media: Cow::from(url),
-        sender: messages::Sender {
-            avatar: Cow::from(""),
-            name: Cow::from("Bot"),
-            id: None,
-            language: None,
-            country: None,
-            api_version: None,
-        },
+        sender: *Sender::new("Bot"),
         keyboard: None,
         file_name: Cow::from(file_name),
         size: size,
@@ -93,14 +80,7 @@ pub fn send_picture_message(
         min_api_version: 1,
         receiver: Cow::from(receiver),
         media: Cow::from(url),
-        sender: messages::Sender {
-            avatar: Cow::from(""),
-            name: Cow::from("Bot"),
-            id: None,
-            language: None,
-            country: None,
-            api_version: None,
-        },
+        sender: *Sender::new("Bot"),
         keyboard: None,
         text: Cow::from(text),
         thumbnail: Cow::from(thumb),
@@ -125,7 +105,7 @@ pub fn send_text_message(
         receiver: Cow::from(receiver),
         text: Cow::from(text),
         keyboard: kb,
-        sender: ,
+        sender: *Sender::new("Bot"),
         tracking_data: Cow::from(""),
     };
 
