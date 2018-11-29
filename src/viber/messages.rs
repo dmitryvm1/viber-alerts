@@ -182,3 +182,41 @@ pub struct CallbackMessage<'s> {
     pub user: Option<User<'s>>,
     pub subscribed: Option<bool>,
 }
+
+impl Sender {
+    pub fn new(from: &str) -> &mut Self {
+        &mut Sender {
+            id: None,
+            api_version: None,
+            country: None,
+            language: None,
+            name: Cow::from(from),
+            avatar: Cow::from("")
+        }
+    }
+
+    pub fn avatar(&mut self, url: &str) -> &mut Self {
+        self.avatar = Cow::from(url);
+        self
+    }
+
+    pub fn id(&mut self, id: &str) -> &mut Self {
+        self.id = Some(Cow::from(id));
+        self
+    }
+
+    pub fn language(&mut self, language: &str) -> &mut Self {
+        self.language = Some(Cow::from(language));
+        self
+    }
+
+    pub fn country(&mut self, country: &str) -> &mut Self {
+        self.country = Some(Cow::from(country));
+        self
+    }
+
+    pub fn api_version(&mut self, api_version: i64) -> &mut Self {
+        self.api_version = Some(api_version);
+        self
+    }
+}

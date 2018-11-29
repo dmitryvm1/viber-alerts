@@ -125,14 +125,7 @@ pub fn send_text_message(
         receiver: Cow::from(receiver),
         text: Cow::from(text),
         keyboard: kb,
-        sender: messages::Sender {
-            avatar: Cow::from(""),
-            name: Cow::from("Bot"),
-            id: None,
-            language: None,
-            country: None,
-            api_version: None,
-        },
+        sender: ,
         tracking_data: Cow::from(""),
     };
 
