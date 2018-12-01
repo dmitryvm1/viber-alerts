@@ -183,7 +183,7 @@ pub struct CallbackMessage<'s> {
     pub subscribed: Option<bool>,
 }
 
-impl Sender {
+impl<'a> Sender<'a> {
     pub fn new(from: &str) -> &mut Self {
         &mut Sender {
             id: None,
